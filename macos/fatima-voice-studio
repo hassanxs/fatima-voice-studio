@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Launcher: runs the app from its virtual environment. Arguments go to `python -m studio` (--no-browser …).
+#   fatima-voice-studio              start with a tray icon (right-click -> Quit), opens the browser
+#   fatima-voice-studio --no-tray    start without a tray icon (Ctrl+C quits), e.g. for the LaunchAgent service
+#   fatima-voice-studio --stop       stop a running instance (also its speech engine)
+here="$(cd "$(dirname "$0")" && pwd)"
+py="$here/.venv/bin/python"
+[ -x "$py" ] || { echo "No virtual environment yet. Run: $here/setup.sh" >&2; exit 1; }
+if [ "${1:-}" = "--stop" ]; then
+  if pkill -TERM -f "$here/run.py"; then echo "Stopped."; else echo "Not running."; fi
+  exit 0
+fi
+args=(); tray=1
+for a in "$@"; do
+  case "$a" in
+    --no-tray) tray=0 ;;
+    --tray) ;;
+    --check) tray=0; args+=("$a") ;;
+    *) args+=("$a") ;;
+  esac
+done
+if [ "$tray" = 1 ]; then
+  if "$py" -c "import pystray" 2>/dev/null; then args+=(--tray)
+  else echo "Note: no tray icon (pyobjc-framework-Cocoa missing, run setup.sh). Quit with Ctrl+C or --stop." >&2; fi
+fi
+exec "$py" "$here/run.py" "${args[@]}"
