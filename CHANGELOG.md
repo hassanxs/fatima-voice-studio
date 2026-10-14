@@ -2,6 +2,10 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
+## 0.3.4
+- Fixed (Linux): Fish Audio S2 Pro couldn't be downloaded on the Models page ("isn't available to download yet").
+- Mac: Fish Audio S2 Pro, on the Mac's graphics (Metal), after running `./build-s2.sh` once. Thanks to @Blarks-de.
+
 ## 0.3.3
 - Graphics cards with less memory than a voice model needs (2-3 GB) work now instead of running out of memory: Qwen3-TTS puts what fits on the card and the rest in normal memory; S2 Pro runs on the processor there.
 - Linux: one command installs everything on Debian, Ubuntu, Mint, Fedora, openSUSE and Arch, with the engines for your graphics card (CUDA for NVIDIA, Vulkan for the rest). S2 Pro and Whisper run on the card, as on Windows. Run it again to update.

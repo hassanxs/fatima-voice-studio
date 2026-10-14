@@ -117,7 +117,7 @@ cd fatima-voice-studio/macos
 ```
 
 On a Mac the app uses Homebrew's `llama.cpp` and `whisper-cpp`, which run on the Mac's graphics (Metal), and
-ffmpeg from Homebrew. S2 Pro isn't available on a Mac yet.
+ffmpeg from Homebrew. For Fish Audio S2 Pro, run `./build-s2.sh` once (it builds s2.cpp with Metal).
 
 The app is the same; a few things work differently:
 
@@ -184,6 +184,7 @@ About page when an update is ready. Older installers stay on the [releases page]
 
 | Version | What changed |
 |---|---|
+| [0.3.4](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.3.4) | Linux: S2 Pro downloads on the Models page work. Mac: S2 Pro on Metal. |
 | [0.3.3](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.3.3) | Small graphics cards (2-3 GB) no longer run out of memory. Linux: one-command install on every major distribution, with CUDA or Vulkan engines and S2 Pro. |
 | [0.3.2](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.3.2) | Find a new voice and voice samples work in every language S2 Pro speaks (they failed in Hindi, Urdu and others). |
 | [0.3.1](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.3.1) | Whisper large-v3 turbo is used by itself on the graphics card (more accurate subtitles outside English). Each script's language list follows the voice model. |
