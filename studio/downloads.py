@@ -85,7 +85,9 @@ class Downloads:
             if not config.s2_engine(self.cfg):
                 raise ValueError(f"{m['label']} runs on the NVIDIA · CUDA or AMD / Intel · Vulkan engine. "
                                  "Download one on Setup and use it, then download this model.")
-            if not config.S2_RUNTIME[config.s2_engine(self.cfg)][1]:
+            # size 0: no s2.cpp download for this engine. Fine once it's there (Linux and macOS install it with
+            # their setup scripts); only then is there nothing to fetch it from.
+            if not config.S2_RUNTIME[config.s2_engine(self.cfg)][1] and self._s2_missing():
                 raise ValueError(f"{m['label']} isn't available to download yet.")
         self._launch(key, self._run(key))
 
