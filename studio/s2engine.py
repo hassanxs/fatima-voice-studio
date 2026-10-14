@@ -154,11 +154,14 @@ class S2Server:
         args = [str(exe), "--server", "-H", "127.0.0.1", "-P", str(self.port), "--model", str(gguf),
                 "--tokenizer", str(folder / "tokenizer.json"), "--gpu-layers", "0" if on_cpu else "36",
                 "--log-level", "info"]
+        # s2.cpp's Metal backend (this build) has no PAD op, which the audio codec's decode path needs: the
+        # codec stays on the CPU with --codec-cpu while the transformer still runs on Metal.
         if on_cpu:
-            args += ["--cuda" if engine == "cuda" else "--vulkan", "-1"]
+            args += ["--metal", "--codec-cpu"] if engine == "metal" else ["--cuda" if engine == "cuda" else "--vulkan", "-1"]
             log.info("S2 Pro runs on the CPU: the graphics card has %s GB", gpu["vram_gb"])
         else:
-            args += ["--cuda", "0"] if engine == "cuda" else ["--vulkan", str(device)]
+            args += (["--metal", "--codec-cpu"] if engine == "metal"
+                     else ["--cuda", "0"] if engine == "cuda" else ["--vulkan", str(device)])
         env = os.environ.copy()
         if engine == "cuda":  # cuBLAS and cudart come from the voice engine's folder
             env["PATH"] = str(config.engine_dir(self.cfg, "cuda")) + os.pathsep + env.get("PATH", "")

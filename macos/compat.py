@@ -17,6 +17,7 @@ What it does:
   * updater    switched off (Windows installer updates); update with `git pull`
   * tools      ffmpeg and whisper-cli come from Homebrew / build-*.sh; the Windows downloads are never offered
   * engine     llama-tts dies with the app (pdeath-wrap.sh polls the app's pid; macOS has no pdeathsig)
+  * S2 Pro     s2.cpp with Metal from macos/bin/s2cpp (build-s2.sh) or FVS_S2, run as the "metal" S2 engine
   * wording    visible "Windows" texts in the web page are rewritten (Start at login, Trash …)
   * misc       os.startfile -> open, clipboard -> pbcopy
 """
@@ -33,6 +34,9 @@ MACOS_DIR = Path(__file__).resolve().parent
 REPO = MACOS_DIR.parent
 SYSTEM_ENGINE = "system"
 PDEATH_WRAP = MACOS_DIR / "pdeath-wrap.sh"
+S2_EXE = "s2"
+S2_HINT = ("Fish Audio S2 Pro needs its engine part, s2.cpp with Metal. Run ./build-s2.sh in the macos folder "
+           "(see macos/README.md): it builds s2.cpp with Metal into macos/bin/s2cpp. Then press Check again.")
 
 _applied = False
 
@@ -112,10 +116,20 @@ def _link(target: str | None, link: Path) -> None:
         pass
 
 
+def s2_folder() -> Path | None:
+    """s2.cpp built with Metal (FVS_S2, else macos/bin/s2cpp, built by ./build-s2.sh)."""
+    given = os.environ.get("FVS_S2")
+    folder = Path(given) if given else MACOS_DIR / "bin" / "s2cpp"
+    return folder if (folder / S2_EXE).exists() and (folder / "tokenizer.json").exists() else None
+
+
 def _link_tools() -> None:
     home = fvs_home()
     _link(find_tool("FVS_LLAMA_TTS", "llama-tts"), home / "engine" / SYSTEM_ENGINE / "llama-tts")
     _link(find_tool("FVS_WHISPER_CLI", "whisper-cli"), home / "engine" / "whisper" / "whisper-cli")
+    s2 = s2_folder()
+    for name in (S2_EXE, "tokenizer.json"):
+        _link(str(s2 / name) if s2 else None, home / "engine" / "s2-metal" / name)
 
 
 def _patch_config() -> None:
@@ -391,6 +405,41 @@ def _patch_updater() -> None:
     updater.Updater = MacOSUpdater
 
 
+def _patch_s2() -> None:
+    """S2 Pro through s2.cpp's Metal build (build-s2.sh), as the app's "metal" S2 engine. Qwen3-TTS stays on
+    the "system" llama-tts engine; S2 Pro runs whenever that engine is installed and s2.cpp is built."""
+    from studio import config, downloads
+
+    config.S2_EXE = S2_EXE
+    config.S2_RUNTIME = {"metal": ("", 0, "")}  # size 0: nothing for the app to download, build-s2.sh builds it
+    config.s2_dir = lambda engine: fvs_home() / "engine" / f"s2-{engine}"
+    config.s2_engine = lambda cfg: ("metal" if s2_folder() and SYSTEM_ENGINE in config.installed_engines(cfg)
+                                    else None)
+    for m in config.MODELS.values():
+        if m.get("runtime") == "s2":
+            m["engines"] = [SYSTEM_ENGINE]
+
+    D = downloads.Downloads
+    real_start = D.start
+
+    def start(self, key: str) -> None:
+        # real_start()'s own s2 guard (`not config.S2_RUNTIME[engine][1]`) reads our size-0 "nothing for the
+        # app to download" sentinel as "not available" and would block every S2 Pro download forever, even
+        # once s2.cpp is built -- so an s2-runtime model is launched here directly instead of falling through.
+        m = config.MODELS.get(key, {})
+        if m.get("runtime") == "s2":
+            if not s2_folder():
+                raise ValueError(S2_HINT)
+            if not config.s2_engine(self.cfg):
+                raise ValueError(f"{m['label']} runs on the system llama-tts engine: install it on Setup, then "
+                                 "download this model.")
+            self._launch(key, self._run(key))
+            return
+        real_start(self, key)
+
+    D.start = start
+
+
 def _patch_engine() -> None:
     """Windows ties llama-tts to the app with a job object; setpriv does it on Linux. Here pdeath-wrap.sh polls
     this process's pid and kills the child once it's gone."""
@@ -403,6 +452,8 @@ def _patch_engine() -> None:
             super().__init__([str(PDEATH_WRAP), *args], *a, env=env, **kw)
 
     engine.subprocess = types.SimpleNamespace(**{**vars(subprocess), "Popen": Popen})
+    from studio import s2engine
+    s2engine.subprocess = engine.subprocess  # the S2 Pro server too
 
 
 # ---- wording ----------------------------------------------------------------------------------------------
@@ -423,6 +474,14 @@ TEXTS = [
      "On macOS the app uses the llama-tts installed on this PC (llama.cpp b10270 or newer, with Metal on Apple "
      "Silicon). There is nothing to download here: install it with Homebrew (brew install llama.cpp), then press "
      "Check again."),
+    ("S2 Pro on the NVIDIA · CUDA or AMD / Intel · Vulkan engine.",
+     "S2 Pro with s2.cpp for Metal, which build-s2.sh builds."),
+    ("Needs the NVIDIA · CUDA or AMD / Intel · Vulkan engine (<a href=\"#setup\">Setup</a>)",
+     "Needs s2.cpp with Metal: run ./build-s2.sh in the macos folder"),
+    ("Needs the NVIDIA · CUDA or AMD / Intel · Vulkan engine: switch to one on Setup.",
+     "Needs s2.cpp with Metal: run ./build-s2.sh in the macos folder, then press Check again on Setup."),
+    ("runs on the NVIDIA · CUDA or AMD / Intel · Vulkan engine. Switch to one on Setup.",
+     "needs s2.cpp with Metal: run ./build-s2.sh in the macos folder."),
 ]
 
 
@@ -535,6 +594,7 @@ def apply() -> None:
     _patch_hardware()
     _patch_autostart()
     _patch_updater()
+    _patch_s2()
     _patch_engine()
     _link_tools()
     _patch_web()

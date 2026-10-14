@@ -1,7 +1,6 @@
 """Settings (data/config.json), the engine builds, and the models the app can download."""
 import ctypes
 import json
-import sys
 import os
 import secrets
 from pathlib import Path
@@ -278,9 +277,6 @@ MODELS["uvr-vocals"] = {
     "license": "MIT — commercial use OK", "page": "https://github.com/Anjok07/ultimatevocalremovergui",
     "about": "Takes the voice out of a clip with music or background sound under it, so it can become a clean "
              "reference voice. Runs on the CPU, about 4× faster than real time."}
-if sys.platform == "darwin":  # no s2.cpp build for macOS yet (Windows: S2_RUNTIME; Linux: linux/compat.py)
-    for _k in [k for k, m in MODELS.items() if m.get("runtime") == "s2"]:
-        del MODELS[_k]
 SUBTITLE_PREFERENCE = ["whisper-small", "whisper-turbo", "whisper-medium", "whisper-base", "whisper-large"]
 # With Whisper on the graphics card, turbo is about as quick as small there and far more accurate outside English.
 SUBTITLE_PREFERENCE_GPU = ["whisper-turbo", *(k for k in SUBTITLE_PREFERENCE if k != "whisper-turbo")]

@@ -29,13 +29,16 @@ STUDIO = HERE.parent / "studio"
 
 TARGETS = {
     "config": {"HOME", "DATA", "CONFIG_FILE", "VOICES", "MUSIC", "DEFAULTS", "ENGINES", "ENGINE_EXE", "WHISPER_EXE",
-               "engine_dir", "installed_engines", "whisper_dir", "tool_dir"},
+               "engine_dir", "installed_engines", "whisper_dir", "tool_dir",
+               # _patch_s2: S2 Pro through s2.cpp's Metal build (build-s2.sh)
+               "S2_EXE", "S2_RUNTIME", "s2_dir", "s2_engine", "MODELS"},
     "hardware": {"_vendor", "_registry_gpus", "_ram_gb", "_cpu", "on_battery", "recommended_engine"},
     "autostart": {"enabled", "set_enabled", "python_console", "install_launchers"},
     "updater": {"Updater"},
     "trash": {"to_recycle_bin"},
     "winui": {"pick_folder"},
     "engine": {"subprocess"},
+    "s2engine": {"subprocess"},  # the same for the S2 Pro server
     "tray": {"copy", "Tray"},
     "app": {"create_app", "Updater", "pick_folder"},
     "media": {"ffmpeg_exe", "ffmpeg_source"},
@@ -44,10 +47,13 @@ TARGETS = {
 CLASS_MEMBERS = {
     ("updater", "Updater"): {"watch", "check", "start"},
     ("tray", "Tray"): {"__init__"},
-    ("downloads", "Downloads"): {"tools", "start_tool", "delete_tool", "start_engine", "_whisper_missing"},
+    ("downloads", "Downloads"): {"tools", "start_tool", "delete_tool", "start_engine", "_whisper_missing", "start"},
 }
 DEFAULT_KEYS = {"batches_dir", "exports_dir", "models_dir", "engine", "check_updates"}
 ENGINE_FLAGS = {"-m", "-mm", "-ngl", "-c", "4096", "-n", "-f", "--tts-lang", "-s", "--output", "--tts-speaker-file"}
+S2CPP_REF = "2c33261938da1a41d713768b1b391b4d368d7d2c"
+S2CPP_PRS = ("49bb869e2399555ab23be1d6ec4b8aa67c0b6a3c", "f468f9d70e269855f67c2c7e0080071263edb40b",
+             "68ebea3f66e143ad58e326d11aee2b1817c1ae9c")
 
 
 def parse(module: str) -> ast.Module:
@@ -101,6 +107,19 @@ class StaticChecks(unittest.TestCase):
                          f"engine.py no longer passes {sorted(ENGINE_FLAGS - used)} to llama-tts. "
                          "Check LLAMA_MIN_BUILD in setup.sh and the llama.cpp version in the README.")
 
+    def test_s2engine_has_a_metal_branch(self):
+        """s2engine.py's _start() must send s2.cpp --metal for macOS's "metal" S2 engine (config.s2_engine()),
+        the same way it already sends --cuda/--vulkan for Windows/Linux, without removing either of those.
+        --codec-cpu must go alongside --metal: the pinned s2.cpp commit's own ggml-metal backend doesn't
+        implement the PAD op its Metal codec decode path needs (confirmed live: --metal alone crashes with
+        "unsupported op 'PAD'" on every request; --metal --codec-cpu generates real audio, same GGUF model)."""
+        src = (STUDIO / "s2engine.py").read_text(encoding="utf-8")
+        self.assertIn('"metal"', src, "s2engine.py no longer branches on the \"metal\" engine key")
+        self.assertIn("--metal", src, "s2engine.py no longer passes --metal to s2.cpp")
+        self.assertIn("--codec-cpu", src, "s2engine.py no longer forces the codec off Metal's broken PAD op")
+        self.assertIn("--cuda", src, "the existing cuda branch must stay (Windows/Linux)")
+        self.assertIn("--vulkan", src, "the existing vulkan branch must stay (Windows/Linux)")
+
     def test_web_script_patches_still_match(self):
         """compat.py edits/rewords studio/web/app.js; if upstream changes those lines the patch silently stops."""
         sys.path.insert(0, str(HERE))
@@ -112,10 +131,21 @@ class StaticChecks(unittest.TestCase):
                 self.assertTrue(found, f"“{old[:60]}…” is no longer in studio/; update compat.py")
 
     def test_shell_scripts_are_syntactically_valid(self):
-        for name in ("build-llama.sh", "build-whisper.sh", "setup.sh", "fatima-voice-studio"):
+        for name in ("build-llama.sh", "build-whisper.sh", "build-s2.sh", "setup.sh", "fatima-voice-studio"):
             with self.subTest(script=name):
                 r = subprocess.run(["bash", "-n", str(HERE / name)], capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_build_s2_sh_pins_the_same_commit_and_patches_as_windows_linux(self):
+        """build-s2.sh must build exactly what .github/workflows/s2cpp.yml builds for Windows/Linux (same commit,
+        same 3 pull requests, same seed.patch) -- the spec says not to swap these, and a silent drift here would
+        make macOS's S2 Pro behave differently (or build inconsistently) from the other platforms."""
+        script = (HERE / "build-s2.sh").read_text(encoding="utf-8")
+        self.assertIn(S2CPP_REF, script)
+        for sha in S2CPP_PRS:
+            self.assertIn(sha, script)
+        self.assertIn("packaging/s2cpp/seed.patch", script)
+        self.assertIn("-DS2_METAL=ON", script)
 
     def test_setup_sh_check_step_does_not_swallow_a_failure(self):
         """`cmd && ok ...` does not trip `set -e` when cmd fails (only a bare `cmd` on its own line does), so
@@ -211,6 +241,113 @@ class RuntimeChecks(unittest.TestCase):
     def test_about_page_does_not_show_the_windows_engine_pin(self):
         from studio import config as c
         self.assertEqual(c.ENGINE_RELEASE, self.compat.llama_build() or "not found")
+
+    def test_s2_pro_models_are_not_hidden_on_macos(self):
+        from studio import config as c
+        self.assertIn("s2-pro-q8", c.MODELS, "studio/config.py still deletes S2 Pro models on darwin")
+        self.assertIn("s2-pro-q6", c.MODELS, "studio/config.py still deletes S2 Pro models on darwin")
+
+    def test_s2_config_values(self):
+        from studio import config as c
+        home = Path(os.environ["FVS_HOME"])
+        self.assertEqual(c.S2_EXE, "s2")
+        self.assertEqual(c.S2_RUNTIME, {"metal": ("", 0, "")})
+        self.assertEqual(c.s2_dir("metal"), home / "engine" / "s2-metal")
+
+    def test_s2_pro_models_use_the_system_engine(self):
+        """"engines" gates against cfg["engine"] (hardware.model_fit, engine.ready_problem) -- that's "system" on
+        macOS, not "metal" (the S2 Pro backend key is a separate concept, config.s2_engine())."""
+        from studio import config as c
+        for key, m in c.MODELS.items():
+            if m.get("runtime") == "s2":
+                with self.subTest(model=key):
+                    self.assertEqual(m["engines"], ["system"])
+
+    def test_s2_engine_is_none_without_an_s2cpp_build(self):
+        from studio import config as c
+        with unittest.mock.patch.object(self.compat, "s2_folder", return_value=None):
+            self.assertIsNone(c.s2_engine({"engine": "system"}))
+
+    def test_s2_engine_is_metal_once_s2cpp_and_the_system_engine_are_there(self):
+        from studio import config as c
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            (folder / "s2").write_text("#!/bin/sh\n")
+            (folder / "s2").chmod(0o755)
+            (folder / "tokenizer.json").write_text("{}")
+            old = os.environ.get("FVS_S2")
+            os.environ["FVS_S2"] = str(folder)
+            try:
+                with unittest.mock.patch.object(c, "installed_engines", return_value=["system"]):
+                    self.assertEqual(c.s2_engine({"engine": "system"}), "metal")
+            finally:
+                if old is None:
+                    os.environ.pop("FVS_S2", None)
+                else:
+                    os.environ["FVS_S2"] = old
+
+    def test_s2_tools_are_linked_into_s2_metal(self):
+        home = Path(os.environ["FVS_HOME"])
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            (folder / "s2").write_text("#!/bin/sh\n")
+            (folder / "s2").chmod(0o755)
+            (folder / "tokenizer.json").write_text("{}")
+            old = os.environ.get("FVS_S2")
+            os.environ["FVS_S2"] = str(folder)
+            try:
+                self.compat._link_tools()
+                link = home / "engine" / "s2-metal" / "s2"
+                self.assertTrue(link.is_symlink())
+                self.assertEqual(os.readlink(link), str(folder / "s2"))
+                self.assertTrue((home / "engine" / "s2-metal" / "tokenizer.json").is_symlink())
+            finally:
+                if old is None:
+                    os.environ.pop("FVS_S2", None)
+                else:
+                    os.environ["FVS_S2"] = old
+
+    def test_s2_pro_download_is_blocked_without_s2cpp(self):
+        from studio import downloads, config
+        d = downloads.Downloads(config.load())
+        with unittest.mock.patch.object(self.compat, "s2_folder", return_value=None):
+            with self.assertRaises(ValueError) as cm:
+                d.start("s2-pro-q6")
+        self.assertIn("build-s2.sh", str(cm.exception))
+
+    def test_s2_pro_download_starts_once_s2cpp_is_built(self):
+        """Found by actually starting a download against the running app (not by a mock): real_start()'s own
+        guard `not config.S2_RUNTIME[engine][1]` treats our size-0 "nothing for the app to download" sentinel
+        as "not available", so falling through to it blocks every S2 Pro download forever, even once s2.cpp is
+        built and the system engine is active. Downloads.start must not delegate an s2-runtime model to that
+        check."""
+        import asyncio
+        from studio import downloads, config
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            (folder / "s2").write_text("#!/bin/sh\n")
+            (folder / "s2").chmod(0o755)
+            (folder / "tokenizer.json").write_text("{}")
+            old = os.environ.get("FVS_S2")
+            os.environ["FVS_S2"] = str(folder)
+            try:
+                with unittest.mock.patch.object(config, "installed_engines", return_value=["system"]):
+                    dl = downloads.Downloads(config.load())
+                    with unittest.mock.patch.object(dl, "_launch") as launch:
+                        async def go():
+                            dl.start("s2-pro-q6")
+                        asyncio.run(go())
+                    launch.assert_called_once()
+                    launch.call_args.args[1].close()  # the real coroutine was never awaited (mocked out); don't leak it
+            finally:
+                if old is None:
+                    os.environ.pop("FVS_S2", None)
+                else:
+                    os.environ["FVS_S2"] = old
+
+    def test_s2engine_subprocess_is_tied_to_the_app_too(self):
+        from studio import s2engine
+        self.assertIs(s2engine.subprocess.Popen, self.engine.subprocess.Popen)
 
     def _client(self):
         from fastapi.testclient import TestClient
