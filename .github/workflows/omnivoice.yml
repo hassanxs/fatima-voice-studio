@@ -38,6 +38,9 @@ jobs:
     env:
       VULKAN_VERSION: 1.4.357.0
     steps:
+      - name: Keep line endings as they are (so patches apply)
+        run: git config --global core.autocrlf false
+
       - name: Get omnivoice.cpp
         uses: actions/checkout@v4
         with:
