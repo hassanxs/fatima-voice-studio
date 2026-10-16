@@ -1,0 +1,113 @@
+# Builds omnivoice.cpp (https://github.com/ServeurpersoCom/omnivoice.cpp), the C++/ggml engine for OmniVoice
+# (k2-fsa), so the model can be tested as a possible voice engine. Same builds as the s2.cpp ones:
+#
+#   cuda-13.4 -> voice engine "cuda" (RTX 20 series and newer); loads cuBLAS 13 / cudart 13 from that engine's folder
+#   vulkan    -> voice engine "vulkan" (AMD, Intel, NVIDIA); needs only the graphics driver
+#
+# Run it by hand; the zips stay workflow artifacts (nothing is published).
+name: omnivoice.cpp builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "omnivoice.cpp commit to build"
+        required: true
+        default: "1a468d8b9d65b3544ca1004d2d7c05dfc65d1f3e"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: omnivoice.cpp ${{ matrix.backend }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: cuda-13.4
+            defines: -DGGML_CUDA=ON
+          - backend: vulkan
+            defines: -DGGML_VULKAN=ON
+    env:
+      VULKAN_VERSION: 1.4.357.0
+    steps:
+      - name: Get omnivoice.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ServeurpersoCom/omnivoice.cpp
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+          fetch-depth: 0  # version.cmake reads the commit
+
+      # The same CUDA components and versions as llama.cpp's Windows builds of the voice engine (b11476).
+      - name: Install CUDA 13.4
+        if: matrix.backend == 'cuda-13.4'
+        shell: pwsh
+        run: |
+          $root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4"
+          $base = "https://developer.download.nvidia.com/compute/cuda/redist"
+          $parts = @(
+            "cuda_crt/windows-x86_64/cuda_crt-windows-x86_64-13.4.59-archive.zip",
+            "cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-13.4.49-archive.zip",
+            "cuda_nvcc/windows-x86_64/cuda_nvcc-windows-x86_64-13.4.59-archive.zip",
+            "cuda_nvrtc/windows-x86_64/cuda_nvrtc-windows-x86_64-13.4.59-archive.zip",
+            "libcublas/windows-x86_64/libcublas-windows-x86_64-13.7.0.27-archive.zip",
+            "libnvvm/windows-x86_64/libnvvm-windows-x86_64-13.4.59-archive.zip",
+            "cuda_nvtx/windows-x86_64/cuda_nvtx-windows-x86_64-13.4.49-archive.zip",
+            "cuda_profiler_api/windows-x86_64/cuda_profiler_api-windows-x86_64-13.4.49-archive.zip",
+            "visual_studio_integration/windows-x86_64/visual_studio_integration-windows-x86_64-13.4.49-archive.zip",
+            "cccl/windows-x86_64/cccl-windows-x86_64-13.3.4.2.1-archive.zip")
+          New-Item -ItemType Directory -Force $root | Out-Null
+          foreach ($p in $parts) {
+            $zip = Join-Path $env:RUNNER_TEMP (Split-Path $p -Leaf)
+            curl.exe -sSfL -o $zip "$base/$p"
+            7z x $zip -o"$env:RUNNER_TEMP\cuda" -y | Out-Null
+          }
+          Get-ChildItem "$env:RUNNER_TEMP\cuda" -Directory | ForEach-Object {
+            robocopy $_.FullName $root /E /NFL /NDL /NJH /NJS | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "Copying $($_.Name) failed (robocopy $LASTEXITCODE)" }  # 1-7 mean copied
+          }
+          "$root\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "CUDA_PATH=$root" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CUDA_PATH_V13_4=$root" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          exit 0
+
+      - name: Install the Vulkan SDK
+        if: matrix.backend == 'vulkan'
+        shell: pwsh
+        run: |
+          curl.exe -sSfL -o "$env:RUNNER_TEMP\VulkanSDK-Installer.exe" "https://sdk.lunarg.com/sdk/download/$env:VULKAN_VERSION/windows/vulkansdk-windows-X64-$env:VULKAN_VERSION.exe"
+          & "$env:RUNNER_TEMP\VulkanSDK-Installer.exe" --accept-licenses --default-answer --confirm-command install
+          "VULKAN_SDK=C:\VulkanSDK\$env:VULKAN_VERSION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "C:\VulkanSDK\$env:VULKAN_VERSION\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build
+        shell: cmd
+        run: |
+          choco install ninja -y --no-progress
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF ${{ matrix.defines }}
+          if errorlevel 1 exit /b 1
+          set /A JOBS=%NUMBER_OF_PROCESSORS%-1
+          cmake --build build --config Release -j %JOBS%
+
+      - name: Pack
+        shell: pwsh
+        run: |
+          $out = "pack"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Get-ChildItem build -Recurse -Include *.exe, *.dll | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Copy-Item -Destination $out
+          Copy-Item LICENSE "$out\LICENSE.txt"
+          "omnivoice.cpp ${{ inputs.ref }} (https://github.com/ServeurpersoCom/omnivoice.cpp), backend ${{ matrix.backend }}." | Out-File "$out\NOTICE.txt" -Encoding utf8
+          Get-ChildItem $out | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table | Out-String | Write-Host
+          foreach ($t in "omnivoice-tts.exe", "tts-server.exe", "omnivoice-codec.exe") {
+            if (-not (Test-Path "$out\$t")) { throw "$t wasn't built" }
+          }
+          Compress-Archive -Path "$out\*" -DestinationPath "omnivoice-win-${{ matrix.backend }}-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omnivoice-${{ matrix.backend }}
+          path: omnivoice-*.zip
