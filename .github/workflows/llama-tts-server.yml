@@ -1,5 +1,6 @@
-# Test build: llama-server from llama.cpp b11476 (the voice engine's release) with pull request #26603 merged on top,
-# which adds POST /tts (Qwen3-TTS kept loaded between requests, instead of llama-tts loading it for every part).
+# Test build: llama-server with pull request #26603, which adds POST /tts (Qwen3-TTS kept loaded between requests,
+# instead of llama-tts loading it for every part). By default it builds the PR's own commit (it doesn't merge cleanly
+# into b11476, the voice engine's release), with llama-tts from the same tree for a like-for-like comparison.
 # CUDA 13.4 for RTX 50 cards only (sm_120), to keep the build short; it loads cuBLAS/cudart from the voice
 # engine's folder. Run it by hand; the zip stays a workflow artifact (nothing is published).
 name: llama-server TTS test build
@@ -8,13 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "llama.cpp release to build on"
+        description: "llama.cpp commit or release to build"
         required: true
-        default: "b11476"
+        default: "435d4116eda2abbcdc3d63d85204470070f32705"
       pr:
-        description: "Pull request to merge, as number@commit"
-        required: true
-        default: "26603@435d4116eda2abbcdc3d63d85204470070f32705"
+        description: "Pull request to merge on top, as number@commit (empty: none)"
+        required: false
+        default: ""
       cuda_arch:
         description: "CMAKE_CUDA_ARCHITECTURES"
         required: true
@@ -35,9 +36,10 @@ jobs:
         with:
           repository: ggml-org/llama.cpp
           ref: ${{ inputs.ref }}
-          fetch-depth: 0
+          fetch-depth: ${{ inputs.pr != '' && '0' || '1' }}
 
       - name: Merge the pull request
+        if: inputs.pr != ''
         shell: pwsh
         run: |
           $num, $sha = "${{ inputs.pr }}".Split("@")
