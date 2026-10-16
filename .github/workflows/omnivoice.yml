@@ -125,7 +125,8 @@ jobs:
           @"
           omnivoice.cpp ${{ inputs.ref }} (https://github.com/ServeurpersoCom/omnivoice.cpp, MIT), changed for Fatima
           Voice Studio: packaging/omnivoice/steps.patch (a "steps" field on /v1/audio/speech). Backend: ${{ matrix.backend }}.
-          The OmniVoice model (k2-fsa) and its audio codec (Higgs Audio v2 tokenizer, Boson AI) are Apache 2.0.
+          The OmniVoice model (k2-fsa) is CC-BY-NC 4.0 (non-commercial); its audio codec (Higgs Audio v2 tokenizer)
+          is under Boson AI's licence. Both are downloaded separately, not in this zip.
           "@ | Out-File "$out\NOTICE.txt" -Encoding utf8
           Get-ChildItem $out | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table | Out-String | Write-Host
           foreach ($t in "omnivoice-tts.exe", "tts-server.exe", "omnivoice-codec.exe") {

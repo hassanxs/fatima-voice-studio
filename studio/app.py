@@ -124,9 +124,9 @@ def create_app(cfg: dict) -> FastAPI:
         tasks = [asyncio.create_task(worker.run()), asyncio.create_task(updater.watch()),
                  asyncio.create_task(transcripts.run())]
         log.info("%s on http://%s:%s  (batches: %s)", APP_NAME, cfg["host"], cfg["port"], store.root)
-        subtitles.GPU_TURN = engine.s2.gpu_turn  # Whisper and S2 Pro take turns on small graphics cards
+        subtitles.GPU_TURN = engine.gpu_turn  # Whisper and S2 Pro / OmniVoice take turns on small graphics cards
         downloads.ensure_whisper_gpu()  # e.g. after an update: Whisper's graphics card build, if it's missing
-        downloads.ensure_s2_runtime()   # and s2.cpp, if an S2 Pro model is there without it
+        downloads.ensure_runtimes()     # and s2.cpp / omnivoice.cpp, if one of their models is there without it
         if mcp:
             async with mcp.session_manager.run():  # MCP endpoint for AI agents at /mcp
                 yield
@@ -135,7 +135,7 @@ def create_app(cfg: dict) -> FastAPI:
         for t in tasks:
             t.cancel()
         engine.cancel_current()
-        engine.s2.stop()
+        engine.stop_servers()
 
     app = FastAPI(title=APP_NAME, version=__version__, lifespan=lifespan,
                   description="OpenAI-compatible text-to-speech and transcription on this PC, plus batches of scripts. "
@@ -258,12 +258,13 @@ def create_app(cfg: dict) -> FastAPI:
 
     def model_for(lang: str) -> str:
         """The voice model to speak a sample in this language: the default one if it speaks it, else a downloaded one
-        that does (S2 Pro for Hindi or Urdu, say)."""
+        that does (OmniVoice or S2 Pro for Hindi or Urdu, say), commercial-use ones first."""
         installed = config.installed_models(cfg)
         speaks = lambda k: lang in (config.MODELS[k].get("languages") or config.LANGUAGES)
         if speaks(cfg["default_model"]):
             return check_model(None)
-        key = next((k for k, m in config.MODELS.items() if m["kind"] == "voice" and k in installed and speaks(k)), None)
+        key = next((k for k, m in sorted(config.MODELS.items(), key=lambda km: bool(km[1].get("noncommercial")))
+                    if m["kind"] == "voice" and k in installed and speaks(k) and not engine.ready_problem(k)), None)
         if not key:
             check_speaks(cfg["default_model"], lang)  # says which model to download for it
         return check_model(key)
@@ -684,18 +685,19 @@ def create_app(cfg: dict) -> FastAPI:
             raise HTTPException(400, str(e))
         finally:
             src.unlink(missing_ok=True)
-        if any(config.MODELS[k].get("runtime") == "s2" for k in config.installed_models(cfg)):
-            asyncio.create_task(transcribe_voice(v["id"]))  # ready for S2 Pro, and editable, before it's needed
+        if any(config.MODELS[k].get("runtime") in ("s2", "omni") for k in config.installed_models(cfg)):
+            asyncio.create_task(transcribe_voice(v["id"]))  # ready for S2 Pro / OmniVoice, and editable, before needed
         if not cfg["default_voice"]:
             cfg["default_voice"] = v["id"]
             config.save(cfg)
         return v
 
     async def transcribe_voice(vid: str) -> None:
-        """What a new voice's clip says, heard by Whisper in the background (S2 Pro needs it to copy the voice)."""
+        """What a new voice's clip says, heard by Whisper in the background (S2 Pro and OmniVoice need it to copy
+        the voice)."""
         try:
             await asyncio.to_thread(s2engine.transcript, cfg, voices.clip(vid))
-        except Exception as e:  # Whisper missing or busy: it's done when S2 Pro first uses the voice
+        except Exception as e:  # Whisper missing or busy: it's done when S2 Pro or OmniVoice first uses the voice
             log.info("Couldn't transcribe the new voice %s yet: %s", vid, e)
 
     class VoiceEdit(BaseModel):
@@ -1076,7 +1078,7 @@ def create_app(cfg: dict) -> FastAPI:
             raise HTTPException(404, "Unknown model")
         try:
             downloads.start(key)
-        except ValueError as e:  # e.g. S2 Pro without a CUDA or Vulkan engine
+        except ValueError as e:  # e.g. S2 Pro without a CUDA or Vulkan engine, or no engine at all
             raise HTTPException(409, str(e))
         return downloads.status()
 
@@ -1176,7 +1178,7 @@ def create_app(cfg: dict) -> FastAPI:
                 cfg.pop("benchmark", None)  # the speed was measured on the old engine
                 config.save(cfg)
                 downloads.ensure_whisper_gpu()  # Whisper follows the engine onto its graphics card
-                downloads.ensure_s2_runtime()   # so does S2 Pro's s2.cpp
+                downloads.ensure_runtimes()     # so do S2 Pro's s2.cpp and OmniVoice's omnivoice.cpp
         elif action == "remove":
             if key == cfg["engine"]:
                 raise HTTPException(409, "That engine is in use. Switch to another one first.")

@@ -8,8 +8,8 @@ Voiceovers and voice cloning on your own PC: paste a script (or fifty), pick a v
 and get each one back as WAV and MP3 at YouTube loudness, with SRT subtitles, in its own named, renamable folder.
 It runs [Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) locally through the official
 [llama.cpp](https://github.com/ggml-org/llama.cpp) engine: no cloud, no account, no per-minute cost, and the
-voice model is free for commercial use. An optional second model, Fish Audio S2 Pro, adds 80+ languages and
-emotion tags like `[whisper]` (non-commercial). It also works as an OpenAI-compatible speech API and as an MCP server
+voice model is free for commercial use. Optional models add more: OmniVoice (96 languages, fast and small) and
+Fish Audio S2 Pro (80+ languages and emotion tags like `[whisper]`), both non-commercial. It also works as an OpenAI-compatible speech API and as an MCP server
 for AI agents (Claude Code, Codex, Antigravity, Hermes…).
 
 Made for Windows 10 and 11, with an installer. Linux and Apple Silicon Macs are community-supported: they run
@@ -161,6 +161,9 @@ app under **Help** (works offline); and as Markdown in [`studio/help`](studio/he
 - **A second, more expressive voice model (Windows)** — Fish Audio S2 Pro: 80+ languages and emotion tags like
   `[whisper]` or `[excited]` in the text, about real time on an 8 GB NVIDIA card. Optional and non-commercial.
   [More](studio/help/setup-and-models.md#fish-audio-s2-pro-a-second-voice-model)
+- **A fast voice model for every PC (Windows)** — OmniVoice: 96 languages, about 4× faster than real time on an
+  NVIDIA card in under 2 GB of graphics memory, and it runs on the CPU too. Optional and non-commercial.
+  [More](studio/help/setup-and-models.md#omnivoice-a-third-voice-model)
 - **Channel presets**, **Transcribe** (video or audio to TXT, SRT and VTT), an **OpenAI-compatible API** and an
   **MCP server** for AI agents.
 
@@ -170,10 +173,11 @@ app under **Help** (works offline); and as Markdown in [`studio/help`](studio/he
 |---|---|---|
 | Qwen3-TTS 1.7B · Q8 (default) / Q4 | Apache 2.0 — commercial use OK | 10 languages: English, Spanish, French, German, Italian, Portuguese, Russian, Japanese, Korean, Chinese |
 | Fish Audio S2 Pro · Q8 / Q6 (optional, Windows) | Fish Audio Research License — non-commercial; commercial use needs a licence from Fish Audio | 80+ languages, emotion tags; NVIDIA (CUDA) or AMD / Intel (Vulkan) engine. Built with Fish Audio. |
+| OmniVoice · Q8 / Q4 (optional, Windows) | CC-BY-NC 4.0 — non-commercial (changed from Apache 2.0 in July 2026) | 96 languages; every engine, including the CPU |
 | Whisper base, small, medium, large-v3 turbo, large-v3 | MIT — commercial use OK | Subtitle timing and transcription, on the graphics card or the CPU |
 | UVR MDX-Net Voc_FT (voice separator) | MIT — commercial use OK | Takes a voice out of music |
 
-Every model shows its licence in the app. Non-commercial models (S2 Pro) carry a red label, are never picked as the
+Every model shows its licence in the app. Non-commercial models (S2 Pro, OmniVoice) carry a red label, are never picked as the
 default by themselves, and are refused to AI agents unless allowed on the Connect page. See [Setup and models](studio/help/setup-and-models.md) and
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 

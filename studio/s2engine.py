@@ -358,15 +358,15 @@ def _join(clips: list[np.ndarray], sr: int) -> np.ndarray:
     return np.concatenate([c * float(np.clip(target / x, 0.5, 2.0)) if x > 0 else c for c, x in zip(clips, levels)])
 
 
-def transcript(cfg: dict, clip: Path) -> str:
-    """What the voice's clip says (s2.cpp needs it to clone the voice): from voice.json, else heard by Whisper once
-    and kept there."""
+def transcript(cfg: dict, clip: Path, model: str = "S2 Pro") -> str:
+    """What the voice's clip says (s2.cpp and omnivoice.cpp need it to clone the voice): from voice.json, else heard
+    by Whisper once and kept there. `model` names the voice model in the messages."""
     meta_path = Path(clip).parent / "voice.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     if meta.get("transcript"):
         return meta["transcript"]
     if not subtitles.whisper_available(cfg):
-        raise S2Error("S2 Pro needs to know what the voice's clip says: download a Whisper model on Models, or type "
+        raise S2Error(f"{model} needs to know what the voice's clip says: download a Whisper model on Models, or type "
                       "it in the voice's Edit dialog.")
     words = subtitles.transcript(subtitles.run_whisper(cfg, Path(clip), meta.get("language"))).strip()
     if not words:
@@ -376,5 +376,5 @@ def transcript(cfg: dict, clip: Path) -> str:
         tmp = meta_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(meta_path)
-    log.info("Transcribed the clip of %s for S2 Pro", meta.get("name") or clip)
+    log.info("Transcribed the clip of %s for %s", meta.get("name") or clip, model)
     return words

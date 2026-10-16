@@ -136,6 +136,32 @@ def s2_engine(cfg: dict) -> str | None:
     return key if key in S2_RUNTIME and (engine_dir(cfg, key) / ENGINE_EXE).exists() else None
 
 
+# The third voice engine: omnivoice.cpp's tts-server running OmniVoice (made by .github/workflows/omnivoice.yml,
+# release OMNI_RELEASE). One build per kind of engine: CUDA for "cuda" (loads cuBLAS/cudart from that engine's
+# folder), Vulkan for "vulkan" and "cuda12" (NVIDIA's driver has Vulkan too), and one for the CPU. It comes with an
+# OmniVoice model download. Size 0: not published yet, so there's nothing to download. (url, size, sha256)
+OMNI_RELEASE = "omnivoice-1a468d8"
+OMNI_EXE = "tts-server.exe"
+_OV = f"{REPO_URL}/releases/download/{OMNI_RELEASE}/omnivoice-win-"
+OMNI_RUNTIME = {
+    "cuda": (_OV + "cuda-13.4-x64.zip", 0, ""),
+    "vulkan": (_OV + "vulkan-x64.zip", 0, ""),
+    "cpu": (_OV + "cpu-x64.zip", 0, ""),
+}
+OMNI_BUILD = {"cuda": "cuda", "cuda12": "vulkan", "vulkan": "vulkan", "cpu": "cpu"}  # voice engine -> build
+
+
+def omni_dir(build: str) -> Path:
+    return HOME / "engine" / f"omnivoice-{build}"
+
+
+def omni_build(cfg: dict) -> str | None:
+    """The omnivoice.cpp build OmniVoice runs with: the one for the engine in use, if that engine is installed."""
+    key = cfg["engine"]
+    build = OMNI_BUILD.get(key)
+    return build if build in OMNI_RUNTIME and (engine_dir(cfg, key) / ENGINE_EXE).exists() else None
+
+
 def whisper_gpu_dir(engine: str) -> Path:
     return HOME / "engine" / f"whisper-gpu-{engine}"
 
@@ -154,6 +180,7 @@ HF = "https://huggingface.co/"
 _QWEN = HF + "ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF/resolve/main/"
 _WHISPER = HF + "ggerganov/whisper.cpp/resolve/main/"
 _S2PRO = HF + "rodrigomt/s2-pro-gguf/resolve/main/"  # S2 Pro as GGUF for s2.cpp (decoder kept in F16)
+_OMNI = HF + "Serveurperso/OmniVoice-GGUF/resolve/main/"  # OmniVoice from omnivoice.cpp's author
 # Every file a model can need (url, size, sha256); shared files are downloaded once.
 FILES = {
     "Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf": (_QWEN + "Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf", 1847874400,
@@ -166,6 +193,14 @@ FILES = {
                          "e2043182234786e7b975547d3bbcb23ff02e4ff684b82f7fa851287e4cb4f267"),
     "s2-pro-q6_k.gguf": (_S2PRO + "s2-pro-q6_k.gguf", 4525266528,
                          "84ac904172a2cadb84e8f7f14ea3f1acef0584987635e85f7207fd254eafa235"),
+    "omnivoice-base-Q8_0.gguf": (_OMNI + "omnivoice-base-Q8_0.gguf", 656395008,
+                                 "2882d887921798aea13d45236556bdf8012842ab6f8cd2690943eead6289f298"),
+    "omnivoice-tokenizer-Q8_0.gguf": (_OMNI + "omnivoice-tokenizer-Q8_0.gguf", 288889600,
+                                      "75204fa566a8e30984e7a1066da6557184c9fd099c8f1bc0cb5b9415edfec255"),
+    "omnivoice-base-Q4_K_M.gguf": (_OMNI + "omnivoice-base-Q4_K_M.gguf", 407485216,
+                                   "4836ba5affcb83c04d08b3e96b6e48ac839947ee3864188739807b68e0e159c6"),
+    "omnivoice-tokenizer-Q4_K_M.gguf": (_OMNI + "omnivoice-tokenizer-Q4_K_M.gguf", 252474112,
+                                        "988fc32bc699bce361c44e9af8383be9811960441f293eb5ab4ec6bf6386378d"),
     "ggml-base-q5_1.bin": (_WHISPER + "ggml-base-q5_1.bin", 59707625,
                            "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898"),
     "ggml-small-q5_1.bin": (_WHISPER + "ggml-small-q5_1.bin", 190085487,
@@ -206,9 +241,14 @@ S2_LANGUAGES = ["zh", "en", "ja", "ko", "es", "pt", "ar", "ru", "fr", "de", "sv"
                 "bo", "hr", "ro", "sn", "mi", "yi", "am", "be", "km", "is", "az", "sd", "br", "sq", "ps", "mn", "ht",
                 "ml", "sr", "sa", "te", "ka", "bs", "pa", "lt", "kn", "si", "hy", "mr", "as", "gu", "fo"]
 
-# Every language a voice model here speaks: Qwen3-TTS's ten first, then the rest of S2 Pro's by name. The language
-# picked for a script also sets Whisper's language, numbers as words and the pronunciation list.
-LANGUAGE_NAMES = {**LANGUAGES, **{k: v for k, v in sorted({"af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic", "hy": "Armenian", "as": "Assamese", "az": "Azerbaijani", "eu": "Basque", "be": "Belarusian", "bn": "Bengali", "bs": "Bosnian", "br": "Breton", "bg": "Bulgarian", "my": "Burmese", "ca": "Catalan", "hr": "Croatian", "cs": "Czech", "da": "Danish", "nl": "Dutch", "et": "Estonian", "fo": "Faroese", "fi": "Finnish", "gl": "Galician", "ka": "Georgian", "el": "Greek", "gu": "Gujarati", "ht": "Haitian Creole", "he": "Hebrew", "hi": "Hindi", "hu": "Hungarian", "is": "Icelandic", "id": "Indonesian", "jw": "Javanese", "kn": "Kannada", "kk": "Kazakh", "km": "Khmer", "la": "Latin", "lv": "Latvian", "lt": "Lithuanian", "ms": "Malay", "ml": "Malayalam", "mi": "Maori", "mr": "Marathi", "mn": "Mongolian", "ne": "Nepali", "no": "Norwegian", "nn": "Norwegian Nynorsk", "ps": "Pashto", "fa": "Persian", "pl": "Polish", "pa": "Punjabi", "ro": "Romanian", "sa": "Sanskrit", "sr": "Serbian", "sn": "Shona", "sd": "Sindhi", "si": "Sinhala", "sk": "Slovak", "sl": "Slovenian", "sw": "Swahili", "sv": "Swedish", "tl": "Tagalog", "ta": "Tamil", "te": "Telugu", "th": "Thai", "bo": "Tibetan", "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu", "vi": "Vietnamese", "cy": "Welsh", "yi": "Yiddish", "yo": "Yoruba"}.items(), key=lambda kv: kv[1])}}
+# Every language a voice model here speaks: Qwen3-TTS's ten first, then the rest of S2 Pro's and OmniVoice's by name
+# (OmniVoice speaks 600+; the app offers those Whisper also knows, so subtitles work). The language picked for a
+# script also sets Whisper's language, numbers as words and the pronunciation list.
+LANGUAGE_NAMES = {**LANGUAGES, **{k: v for k, v in sorted({"af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic", "hy": "Armenian", "as": "Assamese", "az": "Azerbaijani", "eu": "Basque", "be": "Belarusian", "bn": "Bengali", "bs": "Bosnian", "br": "Breton", "bg": "Bulgarian", "my": "Burmese", "ca": "Catalan", "hr": "Croatian", "cs": "Czech", "da": "Danish", "nl": "Dutch", "et": "Estonian", "fo": "Faroese", "fi": "Finnish", "gl": "Galician", "ka": "Georgian", "el": "Greek", "gu": "Gujarati", "ht": "Haitian Creole", "he": "Hebrew", "hi": "Hindi", "hu": "Hungarian", "is": "Icelandic", "id": "Indonesian", "jw": "Javanese", "kn": "Kannada", "kk": "Kazakh", "km": "Khmer", "la": "Latin", "lv": "Latvian", "lt": "Lithuanian", "ms": "Malay", "ml": "Malayalam", "mi": "Maori", "mr": "Marathi", "mn": "Mongolian", "ne": "Nepali", "no": "Norwegian", "nn": "Norwegian Nynorsk", "ps": "Pashto", "fa": "Persian", "pl": "Polish", "pa": "Punjabi", "ro": "Romanian", "sa": "Sanskrit", "sr": "Serbian", "sn": "Shona", "sd": "Sindhi", "si": "Sinhala", "sk": "Slovak", "sl": "Slovenian", "sw": "Swahili", "sv": "Swedish", "tl": "Tagalog", "ta": "Tamil", "te": "Telugu", "th": "Thai", "bo": "Tibetan", "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu", "vi": "Vietnamese", "cy": "Welsh", "yi": "Yiddish", "yo": "Yoruba", "mk": "Macedonian", "so": "Somali", "oc": "Occitan", "tg": "Tajik", "lo": "Lao", "uz": "Uzbek", "tk": "Turkmen", "mt": "Maltese", "lb": "Luxembourgish", "tt": "Tatar", "haw": "Hawaiian", "ln": "Lingala", "ha": "Hausa", "ba": "Bashkir", "yue": "Cantonese"}.items(), key=lambda kv: kv[1])}}
+
+# OmniVoice: every language above except Faroese and Latin. It takes ISO 639-3 codes where they differ from the app's.
+OMNI_CODES = {"ar": "arb", "jw": "jv", "ne": "npi", "tl": "fil"}
+OMNI_LANGUAGES = [k for k in LANGUAGE_NAMES if k not in ("fo", "la")]
 
 # kind "voice": speaks text (runs on the engine). kind "subtitles": whisper.cpp for SRT timings and transcripts.
 MODELS = {
@@ -244,6 +284,27 @@ MODELS = {
         "max_chars": 300, "tags": True,
         "about": "Same model, compressed a little further, for graphics cards with 6 to 8 GB. Emotion tags are a "
                  "little weaker than in Q8."},
+    # runtime "omni": spoken by omnivoice.cpp (OMNI_RUNTIME) on every engine. Its parts stay as long as Qwen3-TTS's:
+    # it splits long text itself and keeps the voice steady. vram_gb is the peak measured on an RTX 5060 (8 GB).
+    "omnivoice-q8": {
+        "kind": "voice", "runtime": "omni", "engines": list(OMNI_BUILD), "label": "OmniVoice · Q8",
+        "short": "OmniVoice · fast, 96 languages", "api_id": "omnivoice",
+        "files": ["omnivoice-base-Q8_0.gguf", "omnivoice-tokenizer-Q8_0.gguf"],
+        "license": "CC-BY-NC 4.0 — non-commercial; the model's makers changed it from Apache 2.0 in July 2026", "noncommercial": True,
+        "page": HF + "k2-fsa/OmniVoice",
+        "languages": OMNI_LANGUAGES, "vram_gb": 1.7,
+        "about": "Small and fast: about 4× faster than real time on an RTX 5060 laptop GPU, in under 2 GB of graphics "
+                 "memory, so it also suits 4 GB cards. Clones a voice from a few seconds of audio, in 96 "
+                 "languages. Runs on the processor too, more slowly."},
+    "omnivoice-q4": {
+        "kind": "voice", "runtime": "omni", "engines": list(OMNI_BUILD), "label": "OmniVoice · Q4",
+        "short": "OmniVoice · smallest", "api_id": "omnivoice-q4",
+        "files": ["omnivoice-base-Q4_K_M.gguf", "omnivoice-tokenizer-Q4_K_M.gguf"],
+        "license": "CC-BY-NC 4.0 — non-commercial; the model's makers changed it from Apache 2.0 in July 2026", "noncommercial": True,
+        "page": HF + "k2-fsa/OmniVoice",
+        "languages": OMNI_LANGUAGES, "vram_gb": 1.4,
+        "about": "Same model, compressed further. On a graphics card it's as fast as Q8; on the processor it's about "
+                 "a third faster. Slightly less polished."},
     # Subtitle timing only needs Whisper to find the words (the text comes from the script), so small is plenty;
     # the bigger ones are for transcribing audio you didn't write (the transcription API, the MCP transcribe tool).
     "whisper-base": {

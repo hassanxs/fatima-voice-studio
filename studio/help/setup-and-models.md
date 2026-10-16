@@ -42,9 +42,11 @@ If the recommended NVIDIA engine won't start, update your graphics driver from n
 | **Qwen3-TTS 1.7B · Q4** | Graphics cards with 4 GB or less, and CPU-only PCs. | 1.5 GB |
 | **Fish Audio S2 Pro · Q8** | Very expressive, 80+ languages, emotion tags. NVIDIA cards with 8 GB or more. | 5.6 GB |
 | **Fish Audio S2 Pro · Q6** | The same for cards with 6 to 8 GB. | 4.5 GB |
+| **OmniVoice · Q8** | Fast and small, 96 languages. Every engine, including 4 GB cards and the CPU. | 945 MB |
+| **OmniVoice · Q4** | The same, compressed further: a third faster on the CPU. | 660 MB |
 
-Both are the same model ([Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base)), free for
-commercial use (Apache 2.0), and speak 10 languages: English, Spanish, French, German, Italian, Portuguese,
+The two Qwen3-TTS downloads are the same model ([Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base)),
+free for commercial use (Apache 2.0), and speak 10 languages: English, Spanish, French, German, Italian, Portuguese,
 Russian, Japanese, Korean and Chinese. The Models page warns when a model is a tight fit or too big for your
 graphics card.
 
@@ -69,6 +71,26 @@ as Qwen3-TTS.
   Settings. Scripts for it are spoken in shorter parts (about 300 characters).
 
 ![One S2 Pro batch in English, Hindi, Urdu, Arabic, Japanese and Turkish](images/batch-s2.webp)
+
+### OmniVoice (a third voice model)
+
+[OmniVoice](https://huggingface.co/k2-fsa/OmniVoice) is a small, fast voice model. In the app it speaks 96 languages: Qwen3-TTS's 10 plus Hindi, Urdu, Arabic, Bengali, Swahili,
+Cantonese, Hausa, Uzbek and many more (every language Whisper can also make subtitles for). It copies a voice from
+the same clips as Qwen3-TTS.
+
+- **Engine:** it runs on every engine: CUDA, the older-driver CUDA and Vulkan engines (on the graphics card), and the
+  CPU engine. Its own small engine part downloads with the model.
+- **Speed:** about 4× faster than real time on an NVIDIA card (a 10-minute script in about 2½ minutes, twice as fast
+  as Qwen3-TTS), about 3× on Vulkan. On the CPU it uses a quicker setting and takes about 2 to 3 times as long as
+  the audio (Q4 is the faster one there).
+- **Graphics memory:** under 2 GB, so it suits 4 GB cards. It stays loaded while you use it (it starts in about a
+  second) and unloads after a few idle minutes, or when another voice model speaks. Whisper runs beside it, except
+  on cards under 6 GB, where they take turns.
+- **Licence:** the model is for non-commercial use (CC-BY-NC 4.0; its makers changed it from Apache 2.0 in July
+  2026 because of its training data). Like S2 Pro, the app marks it in red, never picks it as the default by
+  itself, and AI agents can't use it unless you allow it on the Connect page.
+- Pick it per batch, quick take or preset in the **Voice model** list on the Create page, or as the default in
+  Settings. Long scripts are spoken in the usual parts (about 600 characters).
 
 ## Whisper models (subtitles and transcripts)
 

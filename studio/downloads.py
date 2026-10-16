@@ -37,18 +37,46 @@ class Downloads:
     def _whisper_missing(self) -> bool:
         return not (config.whisper_dir() / config.WHISPER_EXE).exists()
 
-    def _s2_missing(self) -> str | None:
-        """The engine whose s2.cpp build an S2 Pro download still needs (None: it's there, or no engine can run it)."""
-        key = config.s2_engine(self.cfg)
-        return key if key and not (config.s2_dir(key) / config.S2_EXE).exists() else None
+    # The voice models that run on their own program, not llama.cpp: S2 Pro (s2.cpp, one build per graphics card
+    # engine) and OmniVoice (omnivoice.cpp, one build per kind of engine). The config functions are looked up each
+    # time, since the Linux and macOS layers replace them.
+
+    def _rt_build(self, rt: str) -> str | None:
+        """The build of runtime `rt` ("s2" or "omni") the engine in use needs (None: no engine can run it)."""
+        return config.s2_engine(self.cfg) if rt == "s2" else config.omni_build(self.cfg)
+
+    @staticmethod
+    def _rt_zips(rt: str) -> dict:
+        return config.S2_RUNTIME if rt == "s2" else config.OMNI_RUNTIME
+
+    @staticmethod
+    def _rt_place(rt: str, build: str) -> tuple[Path, str]:
+        return (config.s2_dir(build), config.S2_EXE) if rt == "s2" else (config.omni_dir(build), config.OMNI_EXE)
+
+    def _rt_missing(self, rt: str) -> str | None:
+        """The build a download of this runtime's model still needs (None: it's there, or no engine can run it)."""
+        build = self._rt_build(rt)
+        if not build:
+            return None
+        folder, exe = self._rt_place(rt, build)
+        return build if not (folder / exe).exists() else None
 
     def _extra(self, m: dict) -> int:
-        """What a model's download also fetches: Whisper with the first Whisper model, s2.cpp with S2 Pro."""
+        """What a model's download also fetches: Whisper with the first Whisper model, s2.cpp with S2 Pro,
+        omnivoice.cpp with OmniVoice."""
         if m["kind"] == "subtitles" and self._whisper_missing():
             return config.WHISPER_ZIP[1]
-        if m.get("runtime") == "s2" and (key := self._s2_missing()):
-            return config.S2_RUNTIME[key][1]
+        if (rt := m.get("runtime")) and (build := self._rt_missing(rt)):
+            return self._rt_zips(rt)[build][1]
         return 0
+
+    def _engine_note(self, m: dict) -> str | None:
+        """Why this model can't run on the engine in use, for its card (None: it can)."""
+        if not m.get("runtime") or self._rt_build(m["runtime"]):
+            return None
+        if m["runtime"] == "s2":
+            return "Needs the NVIDIA · CUDA or AMD / Intel · Vulkan engine"
+        return "Doesn't run on this engine yet" if config.installed_engines(self.cfg) else "Needs an engine (Setup)"
 
     def status(self) -> list[dict]:
         installed = config.installed_models(self.cfg)
@@ -59,10 +87,11 @@ class Downloads:
                 "key": key, "kind": m["kind"], "label": m["label"], "short": m["short"], "about": m["about"],
                 "license": m["license"], "noncommercial": bool(m.get("noncommercial")), "page": m["page"],
                 "installed": key in installed and not (m["kind"] == "subtitles" and self._whisper_missing()),
-                # S2 Pro needs a CUDA or Vulkan engine in use; "runtime_ready" says its s2.cpp build is there too
-                "engines": m.get("engines"), "engine_ok": not m.get("engines") or bool(config.s2_engine(self.cfg)),
-                "runtime_ready": m.get("runtime") != "s2" or (bool(config.s2_engine(self.cfg)) and not self._s2_missing()),
-                "runtime_job": self.jobs.get("s2-runtime:" + (config.s2_engine(self.cfg) or "")) if m.get("runtime") == "s2" else None,
+                # S2 Pro needs a CUDA or Vulkan engine in use, OmniVoice an engine its builds cover; "runtime_ready"
+                # says that build (s2.cpp, omnivoice.cpp) is there too
+                "engines": m.get("engines"), "engine_ok": not self._engine_note(m), "engine_note": self._engine_note(m),
+                "runtime_ready": not (rt := m.get("runtime")) or (bool(self._rt_build(rt)) and not self._rt_missing(rt)),
+                "runtime_job": self.jobs.get(f"{rt}-runtime:{self._rt_build(rt) or ''}") if rt else None,
                 "in_use": m["kind"] == "subtitles" and key == config.subtitles_model(self.cfg),
                 "size": sum(config.FILES[f][1] for f in config.model_files(key)),
                 "to_download": sum(config.FILES[f][1] for f in self.missing(key)) + extra,
@@ -81,13 +110,17 @@ class Downloads:
         if key not in config.MODELS:
             raise ValueError("Unknown model")
         m = config.MODELS[key]
-        if m.get("runtime") == "s2":
-            if not config.s2_engine(self.cfg):
+        if rt := m.get("runtime"):
+            build = self._rt_build(rt)
+            if not build and rt == "s2":
                 raise ValueError(f"{m['label']} runs on the NVIDIA · CUDA or AMD / Intel · Vulkan engine. "
                                  "Download one on Setup and use it, then download this model.")
-            # size 0: no s2.cpp download for this engine. Fine once it's there (Linux and macOS install it with
-            # their setup scripts); only then is there nothing to fetch it from.
-            if not config.S2_RUNTIME[config.s2_engine(self.cfg)][1] and self._s2_missing():
+            if not build:
+                raise ValueError(f"{m['label']} doesn't run on this engine yet." if config.installed_engines(self.cfg)
+                                 else "Download an engine on Setup first, then this model.")
+            # size 0: no download for this build. Fine once it's there (Linux and macOS install s2.cpp with their
+            # setup scripts); only then is there nothing to fetch it from.
+            if not self._rt_zips(rt)[build][1] and self._rt_missing(rt):
                 raise ValueError(f"{m['label']} isn't available to download yet.")
         self._launch(key, self._run(key))
 
@@ -111,7 +144,8 @@ class Downloads:
         job = self.jobs[key]
         files = self.missing(key)
         need_whisper = config.MODELS[key]["kind"] == "subtitles" and self._whisper_missing()
-        need_s2 = self._s2_missing() if config.MODELS[key].get("runtime") == "s2" else None
+        rt = config.MODELS[key].get("runtime")
+        need_rt = self._rt_missing(rt) if rt else None
         job["total"] = sum(config.FILES[f][1] for f in files) + self._extra(config.MODELS[key])
         try:
             self.folder.mkdir(parents=True, exist_ok=True)
@@ -121,9 +155,8 @@ class Downloads:
                     await self._fetch(client, url, size, sha, self.folder / name, job)
                 if need_whisper:
                     await self._install_zips(client, [config.WHISPER_ZIP], config.whisper_dir(), config.WHISPER_EXE, job)
-                if need_s2:
-                    await self._install_zips(client, [config.S2_RUNTIME[need_s2]], config.s2_dir(need_s2),
-                                             config.S2_EXE, job)
+                if need_rt:
+                    await self._install_zips(client, [self._rt_zips(rt)[need_rt]], *self._rt_place(rt, need_rt), job)
             job["status"] = "done"
             log.info("Downloaded %s", key)
             m = config.MODELS[key]
@@ -236,7 +269,7 @@ class Downloads:
                 self.cfg["engine"] = key
                 config.save(self.cfg)
             self.ensure_whisper_gpu()
-            self.ensure_s2_runtime()
+            self.ensure_runtimes()
         except asyncio.CancelledError:
             job["status"] = "cancelled"
         except Exception as e:
@@ -260,6 +293,10 @@ class Downloads:
         if key in config.S2_RUNTIME:  # nor can its s2.cpp build
             shutil.rmtree(config.s2_dir(key), ignore_errors=True)
             self.jobs.pop("s2-runtime:" + key, None)
+        build = config.OMNI_BUILD.get(key)  # nor its omnivoice.cpp build, unless another engine uses it (Vulkan)
+        if build and not any(config.OMNI_BUILD.get(k) == build for k in config.installed_engines(self.cfg)):
+            shutil.rmtree(config.omni_dir(build), ignore_errors=True)
+            self.jobs.pop("omni-runtime:" + build, None)
 
     # ---- Whisper on the graphics card (job key "whisper-gpu:<engine>") ----
 
@@ -301,32 +338,35 @@ class Downloads:
             log.exception("Whisper for the graphics card (%s) failed to download", key)
             job.update(status="failed", error=str(e) or e.__class__.__name__)
 
-    # ---- s2.cpp for S2 Pro (job key "s2-runtime:<engine>") ----
+    # ---- s2.cpp for S2 Pro, omnivoice.cpp for OmniVoice (job key "<runtime>-runtime:<build>") ----
 
-    def ensure_s2_runtime(self) -> None:
-        """Fetch s2.cpp for the engine in use when an S2 Pro model is there but its build isn't (after switching or
-        reinstalling engines, or an update). Fails quietly; the model card's download brings it too."""
-        key = self._s2_missing()
-        if not key or not config.S2_RUNTIME[key][1] or self.busy("s2-runtime:" + key):
-            return
-        if not any(config.MODELS[k].get("runtime") == "s2" for k in config.installed_models(self.cfg)):
-            return
-        if (self.jobs.get("s2-runtime:" + key) or {}).get("status") in ("failed", "cancelled"):
-            return
-        self._launch("s2-runtime:" + key, self._run_s2_runtime(key))
+    def ensure_runtimes(self) -> None:
+        """Fetch the s2.cpp / omnivoice.cpp build for the engine in use when one of its models is there but the build
+        isn't (after switching or reinstalling engines, or an update). Fails quietly; the model card's download
+        brings it too."""
+        installed = config.installed_models(self.cfg)
+        for rt in ("s2", "omni"):
+            build = self._rt_missing(rt)
+            if not build or not self._rt_zips(rt)[build][1] or self.busy(f"{rt}-runtime:{build}"):
+                continue
+            if not any(config.MODELS[k].get("runtime") == rt for k in installed):
+                continue
+            if (self.jobs.get(f"{rt}-runtime:{build}") or {}).get("status") in ("failed", "cancelled"):
+                continue
+            self._launch(f"{rt}-runtime:{build}", self._run_runtime(rt, build))
 
-    async def _run_s2_runtime(self, key: str) -> None:
-        job = self.jobs["s2-runtime:" + key]
-        job["total"] = config.S2_RUNTIME[key][1]
+    async def _run_runtime(self, rt: str, build: str) -> None:
+        job = self.jobs[f"{rt}-runtime:{build}"]
+        job["total"] = self._rt_zips(rt)[build][1]
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(30, read=300)) as client:
-                await self._install_zips(client, [config.S2_RUNTIME[key]], config.s2_dir(key), config.S2_EXE, job)
+                await self._install_zips(client, [self._rt_zips(rt)[build]], *self._rt_place(rt, build), job)
             job["status"] = "done"
-            log.info("s2.cpp installed for %s", key)
+            log.info("%s installed for %s", "s2.cpp" if rt == "s2" else "omnivoice.cpp", build)
         except asyncio.CancelledError:
             job["status"] = "cancelled"
         except Exception as e:
-            log.exception("s2.cpp for %s failed to download", key)
+            log.exception("The %s build for %s failed to download", rt, build)
             job.update(status="failed", error=str(e) or e.__class__.__name__)
 
     # ---- tools (job key "tool:<id>"), e.g. ffmpeg for video files ----

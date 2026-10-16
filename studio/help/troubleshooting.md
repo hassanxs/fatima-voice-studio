@@ -52,6 +52,11 @@ S2 Pro doesn't run on the older-driver CUDA engine or the CPU engine: on **Setup
 (or *AMD / Intel · Vulkan*). If the engine part is missing (after switching engines, for example), click **Get it**
 on S2 Pro's card on the Models page.
 
+### OmniVoice: "engine part is missing" or "couldn't start"
+
+If the engine part is missing (after switching engines, for example), click **Get it** on OmniVoice's card on the
+Models page. If it couldn't start, the details are in `omnivoice.log` (**Settings → Folders → Logs**).
+
 ### The NVIDIA engine won't start, or Setup says the driver is too old
 
 Update your graphics driver from [nvidia.com](https://www.nvidia.com/Download/index.aspx) or the NVIDIA app, then
