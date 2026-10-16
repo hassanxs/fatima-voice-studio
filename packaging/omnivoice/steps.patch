@@ -1,0 +1,44 @@
+diff --git a/src/tts-server.h b/src/tts-server.h
+index a00b997..aa7ef5a 100644
+--- a/src/tts-server.h
++++ b/src/tts-server.h
+@@ -46,6 +46,10 @@ struct tts_request {
+     // random seed per request, matching the CLI convention; anything
+     // else forwards verbatim for reproducible output.
+     int64_t seed;
++
++    // Optional MaskGIT step count (fewer is faster, e.g. on the CPU). 0 or
++    // absent keeps the default (32).
++    int steps;
+ };
+ 
+ // One voice registration parsed from the POST /v1/audio/voices JSON body.
+@@ -174,6 +178,14 @@ static bool tts_parse_request(const std::string & body, tts_request & req, std::
+     }
+     req.seed = seed ? yyjson_get_sint(seed) : -1;
+ 
++    yyjson_val * steps = yyjson_obj_get(root, "steps");
++    if (steps && (!yyjson_is_int(steps) || yyjson_get_sint(steps) < 1 || yyjson_get_sint(steps) > 64)) {
++        err = "'steps' must be an integer from 1 to 64";
++        yyjson_doc_free(doc);
++        return false;
++    }
++    req.steps = steps ? (int) yyjson_get_sint(steps) : 0;
++
+     yyjson_doc_free(doc);
+ 
+     if (req.format != "pcm" && req.format != "wav") {
+diff --git a/tools/tts-server.cpp b/tools/tts-server.cpp
+index cf903d0..b7c26b3 100644
+--- a/tools/tts-server.cpp
++++ b/tools/tts-server.cpp
+@@ -246,6 +246,9 @@ int main(int argc, char ** argv) {
+         // fresh hardware random seed, anything else lands verbatim on
+         // the MaskGIT sampler for reproducible output.
+         p.mg_seed = (req.seed < 0) ? (uint64_t) std::random_device{}() : (uint64_t) req.seed;
++        if (req.steps > 0) {
++            p.mg_num_step = req.steps;
++        }
+ 
+         // Trampoline : the C ABI on_chunk forwards to the C++ sink.
+         const tts_sink * sink_ptr = &sink;

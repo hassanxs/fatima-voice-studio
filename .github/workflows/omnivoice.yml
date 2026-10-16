@@ -1,10 +1,13 @@
 # Builds omnivoice.cpp (https://github.com/ServeurpersoCom/omnivoice.cpp), the C++/ggml engine for OmniVoice
-# (k2-fsa), so the model can be tested as a possible voice engine. Same builds as the s2.cpp ones:
+# (k2-fsa), the app's third voice engine. The app uses the one matching the voice engine a PC uses:
 #
 #   cuda-13.4 -> voice engine "cuda" (RTX 20 series and newer); loads cuBLAS 13 / cudart 13 from that engine's folder
-#   vulkan    -> voice engine "vulkan" (AMD, Intel, NVIDIA); needs only the graphics driver
+#   vulkan    -> voice engines "vulkan" and "cuda12" (AMD, Intel, NVIDIA); needs only the graphics driver
+#   cpu       -> voice engine "cpu"
 #
-# Run it by hand; the zips stay workflow artifacts (nothing is published).
+# Every build loads its backends at run time (GGML_BACKEND_DL) with all CPU variants, so the CPU part picks the
+# fastest instructions the processor has. packaging/omnivoice/*.patch go on top (steps.patch: a "steps" request
+# field for faster, rougher speech on the CPU). Run it by hand; the zips stay workflow artifacts.
 name: omnivoice.cpp builds
 
 on:
@@ -30,6 +33,8 @@ jobs:
             defines: -DGGML_CUDA=ON
           - backend: vulkan
             defines: -DGGML_VULKAN=ON
+          - backend: cpu
+            defines: ""
     env:
       VULKAN_VERSION: 1.4.357.0
     steps:
@@ -40,6 +45,20 @@ jobs:
           ref: ${{ inputs.ref }}
           submodules: recursive
           fetch-depth: 0  # version.cmake reads the commit
+
+      - name: Get this project's patches
+        uses: actions/checkout@v4
+        with:
+          path: fvs
+          sparse-checkout: packaging/omnivoice
+
+      - name: Apply this project's patches
+        shell: pwsh
+        run: |
+          foreach ($p in Get-ChildItem fvs\packaging\omnivoice\*.patch) {
+            git apply --verbose $p.FullName
+            if ($LASTEXITCODE) { throw "$($p.Name) doesn't apply" }
+          }
 
       # The same CUDA components and versions as llama.cpp's Windows builds of the voice engine (b11476).
       - name: Install CUDA 13.4
@@ -88,7 +107,7 @@ jobs:
         run: |
           choco install ninja -y --no-progress
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF ${{ matrix.defines }}
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON ${{ matrix.defines }}
           if errorlevel 1 exit /b 1
           set /A JOBS=%NUMBER_OF_PROCESSORS%-1
           cmake --build build --config Release -j %JOBS%
@@ -98,13 +117,18 @@ jobs:
         run: |
           $out = "pack"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Get-ChildItem build -Recurse -Include *.exe, *.dll | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Copy-Item -Destination $out
+          Get-ChildItem build -Recurse -Include *.exe, *.dll | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' -and $_.Name -notmatch '^(test-|vulkan-shaders-gen|quantize)' } | Copy-Item -Destination $out
           Copy-Item LICENSE "$out\LICENSE.txt"
-          "omnivoice.cpp ${{ inputs.ref }} (https://github.com/ServeurpersoCom/omnivoice.cpp), backend ${{ matrix.backend }}." | Out-File "$out\NOTICE.txt" -Encoding utf8
+          @"
+          omnivoice.cpp ${{ inputs.ref }} (https://github.com/ServeurpersoCom/omnivoice.cpp, MIT), changed for Fatima
+          Voice Studio: packaging/omnivoice/steps.patch (a "steps" field on /v1/audio/speech). Backend: ${{ matrix.backend }}.
+          The OmniVoice model (k2-fsa) and its audio codec (Higgs Audio v2 tokenizer, Boson AI) are Apache 2.0.
+          "@ | Out-File "$out\NOTICE.txt" -Encoding utf8
           Get-ChildItem $out | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table | Out-String | Write-Host
           foreach ($t in "omnivoice-tts.exe", "tts-server.exe", "omnivoice-codec.exe") {
             if (-not (Test-Path "$out\$t")) { throw "$t wasn't built" }
           }
+          if (-not (Select-String -Path "$out\tts-server.exe" -Pattern "'steps' must be" -SimpleMatch -Quiet)) { throw "steps.patch isn't in tts-server.exe" }
           Compress-Archive -Path "$out\*" -DestinationPath "omnivoice-win-${{ matrix.backend }}-x64.zip"
 
       - uses: actions/upload-artifact@v4
