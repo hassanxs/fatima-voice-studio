@@ -2,6 +2,15 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
+## 0.4.0
+- New voice model (Windows): Chatterbox. Copies a voice in 23 languages, including Hindi, Arabic, Swahili and Turkish. Free for commercial use; needs a graphics card.
+- New voice model (Windows): Kokoro. Very fast, with its own 15 voices, which are added to your voice library (marked Kokoro). Over 2× faster than real time even without a graphics card. Free for commercial use.
+- New voice model (Windows): MOSS-TTS Nano. Tiny; copies a voice in English, Spanish, French, German and Chinese, faster than real time even without a graphics card. Free for commercial use.
+- New voice model (Windows): OmniVoice. About 4× faster than real time in under 2 GB of graphics memory, 96 languages. Non-commercial (marked in red).
+- Each new model brings its own small engine part, downloaded with it on the Models page.
+- 15 more languages to pick for scripts, among them Cantonese, Hausa, Uzbek, Somali and Macedonian (for the models that speak them).
+- Fixed: stopping a part at the wrong moment could stop the whole queue until the app was restarted.
+
 ## 0.3.4
 - Fixed (Linux): Fish Audio S2 Pro couldn't be downloaded on the Models page ("isn't available to download yet").
 - Mac: Fish Audio S2 Pro, on the Mac's graphics (Metal), after running `./build-s2.sh` once. Thanks to @Blarks-de.

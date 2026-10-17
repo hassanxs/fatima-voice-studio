@@ -139,14 +139,14 @@ def s2_engine(cfg: dict) -> str | None:
 # The third voice engine: omnivoice.cpp's tts-server running OmniVoice (made by .github/workflows/omnivoice.yml,
 # release OMNI_RELEASE). One build per kind of engine: CUDA for "cuda" (loads cuBLAS/cudart from that engine's
 # folder), Vulkan for "vulkan" and "cuda12" (NVIDIA's driver has Vulkan too), and one for the CPU. It comes with an
-# OmniVoice model download. Size 0: not published yet, so there's nothing to download. (url, size, sha256)
+# OmniVoice model download. (url, size, sha256)
 OMNI_RELEASE = "omnivoice-1a468d8"
 OMNI_EXE = "tts-server.exe"
 _OV = f"{REPO_URL}/releases/download/{OMNI_RELEASE}/omnivoice-win-"
 OMNI_RUNTIME = {
-    "cuda": (_OV + "cuda-13.4-x64.zip", 0, ""),
-    "vulkan": (_OV + "vulkan-x64.zip", 0, ""),
-    "cpu": (_OV + "cpu-x64.zip", 0, ""),
+    "cuda": (_OV + "cuda-13.4-x64.zip", 118617635, "4a459b087fa26af968c3f3a3089bf0857869766e73abef596ad74a1ffe7a5299"),
+    "vulkan": (_OV + "vulkan-x64.zip", 16848431, "bdd102622a2691a0cf29b5ba66418f0437d0a911fe4911f3ee37d12785750d21"),
+    "cpu": (_OV + "cpu-x64.zip", 4018734, "afd253872e0de47c54ae9b3911ae4988d7f3e72b6832e245ee0fa4a964cd8065"),
 }
 OMNI_BUILD = {"cuda": "cuda", "cuda12": "vulkan", "vulkan": "vulkan", "cpu": "cpu"}  # voice engine -> build
 
