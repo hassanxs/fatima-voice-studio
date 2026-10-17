@@ -26,6 +26,7 @@ class Downloads:
         self.cfg = cfg
         self.jobs: dict[str, dict] = {}  # key -> {status, done, total, error}
         self._tasks: dict[str, asyncio.Task] = {}
+        self.on_done: list = []  # called with a model key, or "<runtime>-runtime", after its download finishes
 
     @property
     def folder(self) -> Path:
@@ -38,20 +39,33 @@ class Downloads:
         return not (config.whisper_dir() / config.WHISPER_EXE).exists()
 
     # The voice models that run on their own program, not llama.cpp: S2 Pro (s2.cpp, one build per graphics card
-    # engine) and OmniVoice (omnivoice.cpp, one build per kind of engine). The config functions are looked up each
-    # time, since the Linux and macOS layers replace them.
+    # engine), OmniVoice (omnivoice.cpp) and audio.cpp's models (one build per kind of engine). The config functions
+    # are looked up each time, since the Linux and macOS layers replace them.
 
     def _rt_build(self, rt: str) -> str | None:
-        """The build of runtime `rt` ("s2" or "omni") the engine in use needs (None: no engine can run it)."""
-        return config.s2_engine(self.cfg) if rt == "s2" else config.omni_build(self.cfg)
+        """The build of runtime `rt` ("s2", "omni" or "acpp") the engine in use needs (None: no engine can run it)."""
+        return {"s2": config.s2_engine, "omni": config.omni_build, "acpp": config.acpp_build}[rt](self.cfg)
 
     @staticmethod
-    def _rt_zips(rt: str) -> dict:
-        return config.S2_RUNTIME if rt == "s2" else config.OMNI_RUNTIME
+    def _rt_zips(rt: str, build: str) -> list[tuple[str, int, str]]:
+        """The zips of a runtime's build: one for s2.cpp and omnivoice.cpp, more for audio.cpp's CUDA build."""
+        z = {"s2": config.S2_RUNTIME, "omni": config.OMNI_RUNTIME, "acpp": config.ACPP_RUNTIME}[rt][build]
+        return list(z) if isinstance(z, list) else [z]
+
+    @classmethod
+    def _rt_size(cls, rt: str, build: str) -> int:
+        return sum(size for _, size, _ in cls._rt_zips(rt, build))
 
     @staticmethod
     def _rt_place(rt: str, build: str) -> tuple[Path, str]:
-        return (config.s2_dir(build), config.S2_EXE) if rt == "s2" else (config.omni_dir(build), config.OMNI_EXE)
+        return {"s2": (config.s2_dir, config.S2_EXE), "omni": (config.omni_dir, config.OMNI_EXE),
+                "acpp": (config.acpp_dir, config.ACPP_EXE)}[rt][0](build), \
+            {"s2": config.S2_EXE, "omni": config.OMNI_EXE, "acpp": config.ACPP_EXE}[rt]
+
+    @staticmethod
+    def _espeak_missing(m: dict) -> bool:
+        """Kokoro pronounces most languages with eSpeak NG, fetched with it."""
+        return bool(m.get("espeak")) and not (config.espeak_dir() / "libespeak-ng.dll").exists()
 
     def _rt_missing(self, rt: str) -> str | None:
         """The build a download of this runtime's model still needs (None: it's there, or no engine can run it)."""
@@ -63,12 +77,13 @@ class Downloads:
 
     def _extra(self, m: dict) -> int:
         """What a model's download also fetches: Whisper with the first Whisper model, s2.cpp with S2 Pro,
-        omnivoice.cpp with OmniVoice."""
+        omnivoice.cpp with OmniVoice, audio.cpp (and eSpeak NG for Kokoro) with audio.cpp's models."""
         if m["kind"] == "subtitles" and self._whisper_missing():
             return config.WHISPER_ZIP[1]
+        extra = config.ESPEAK_MSI[1] if self._espeak_missing(m) else 0
         if (rt := m.get("runtime")) and (build := self._rt_missing(rt)):
-            return self._rt_zips(rt)[build][1]
-        return 0
+            extra += self._rt_size(rt, build)
+        return extra
 
     def _engine_note(self, m: dict) -> str | None:
         """Why this model can't run on the engine in use, for its card (None: it can)."""
@@ -90,8 +105,12 @@ class Downloads:
                 # S2 Pro needs a CUDA or Vulkan engine in use, OmniVoice an engine its builds cover; "runtime_ready"
                 # says that build (s2.cpp, omnivoice.cpp) is there too
                 "engines": m.get("engines"), "engine_ok": not self._engine_note(m), "engine_note": self._engine_note(m),
-                "runtime_ready": not (rt := m.get("runtime")) or (bool(self._rt_build(rt)) and not self._rt_missing(rt)),
-                "runtime_job": self.jobs.get(f"{rt}-runtime:{self._rt_build(rt) or ''}") if rt else None,
+                "runtime_ready": not (rt := m.get("runtime")) or (bool(self._rt_build(rt)) and not self._rt_missing(rt)
+                                                                  and not self._espeak_missing(m)),
+                "runtime_job": (self.jobs.get(f"{rt}-runtime:{self._rt_build(rt) or ''}") or
+                                (self.jobs.get("espeak") if m.get("espeak") else None)) if rt else None,
+                # what's missing when runtime_ready is false: its "engine" part, or Kokoro's "pronunciation" part
+                "runtime_part": "pronunciation" if rt and not self._rt_missing(rt) and self._espeak_missing(m) else "engine",
                 "in_use": m["kind"] == "subtitles" and key == config.subtitles_model(self.cfg),
                 "size": sum(config.FILES[f][1] for f in config.model_files(key)),
                 "to_download": sum(config.FILES[f][1] for f in self.missing(key)) + extra,
@@ -101,6 +120,13 @@ class Downloads:
                 "job": self.jobs.get(key),
             })
         return out
+
+    def _done(self, key: str) -> None:
+        for callback in self.on_done:
+            try:
+                callback(key)
+            except Exception:
+                log.exception("After the download of %s", key)
 
     def partial_bytes(self, key: str) -> int:
         parts = (self.folder / (f + ".part") for f in self.missing(key))
@@ -120,7 +146,7 @@ class Downloads:
                                  else "Download an engine on Setup first, then this model.")
             # size 0: no download for this build. Fine once it's there (Linux and macOS install s2.cpp with their
             # setup scripts); only then is there nothing to fetch it from.
-            if not self._rt_zips(rt)[build][1] and self._rt_missing(rt):
+            if not self._rt_size(rt, build) and self._rt_missing(rt):
                 raise ValueError(f"{m['label']} isn't available to download yet.")
         self._launch(key, self._run(key))
 
@@ -156,9 +182,12 @@ class Downloads:
                 if need_whisper:
                     await self._install_zips(client, [config.WHISPER_ZIP], config.whisper_dir(), config.WHISPER_EXE, job)
                 if need_rt:
-                    await self._install_zips(client, [self._rt_zips(rt)[need_rt]], *self._rt_place(rt, need_rt), job)
+                    await self._install_zips(client, self._rt_zips(rt, need_rt), *self._rt_place(rt, need_rt), job)
+                if self._espeak_missing(config.MODELS[key]):
+                    await self._install_espeak(client, job)
             job["status"] = "done"
             log.info("Downloaded %s", key)
+            self._done(key)
             m = config.MODELS[key]
             if m["kind"] == "subtitles":
                 self.ensure_whisper_gpu()
@@ -217,6 +246,46 @@ class Downloads:
             paths.append(path)
         job["status"] = "installing"
         await asyncio.to_thread(self._unpack, paths, target, exe)
+        if target.name.startswith("audiocpp-"):  # NVIDIA's cuFFT zip keeps its DLL in <folder>/bin
+            await asyncio.to_thread(self._hoist_dlls, target)
+
+    @staticmethod
+    def _hoist_dlls(target: Path) -> None:
+        """Move DLLs from unpacked subfolders next to the program (where Windows looks), then drop those folders."""
+        for sub in [d for d in target.iterdir() if d.is_dir() and d.name not in ("model_specs", "tools")]:
+            for dll in sub.rglob("*.dll"):
+                shutil.move(str(dll), target / dll.name)
+            shutil.rmtree(sub, ignore_errors=True)
+
+    async def _install_espeak(self, client, job: dict) -> None:
+        """eSpeak NG's official Windows installer, unpacked (msiexec /a: nothing is installed on the PC)."""
+        url, size, sha = config.ESPEAK_MSI
+        target = config.espeak_dir()
+        msi = target.parent / "espeak-ng.msi"
+        await self._fetch(client, url, size, sha, msi, job)
+        job["status"] = "installing"
+        await asyncio.to_thread(self._unpack_msi, msi, target)
+
+    @staticmethod
+    def _unpack_msi(msi: Path, target: Path) -> None:
+        import subprocess
+        staging = target.with_name(target.name + ".new")
+        shutil.rmtree(staging, ignore_errors=True)
+        # one command line: msiexec wants TARGETDIR="path with spaces", not the whole argument quoted
+        try:
+            r = subprocess.run(f'msiexec.exe /a "{msi}" /qn TARGETDIR="{staging}"', capture_output=True, timeout=300,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except subprocess.TimeoutExpired:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise IOError("eSpeak NG couldn't be unpacked (msiexec didn't finish).")
+        found = next(staging.rglob("libespeak-ng.dll"), None) if staging.exists() else None
+        if r.returncode or not found:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise IOError(f"eSpeak NG couldn't be unpacked (msiexec {r.returncode}).")
+        shutil.rmtree(target, ignore_errors=True)
+        shutil.move(str(found.parent), target)
+        shutil.rmtree(staging, ignore_errors=True)
+        msi.unlink(missing_ok=True)
 
     @staticmethod
     def _unpack(zips: list[Path], target: Path, exe: str) -> None:
@@ -293,10 +362,11 @@ class Downloads:
         if key in config.S2_RUNTIME:  # nor can its s2.cpp build
             shutil.rmtree(config.s2_dir(key), ignore_errors=True)
             self.jobs.pop("s2-runtime:" + key, None)
-        build = config.OMNI_BUILD.get(key)  # nor its omnivoice.cpp build, unless another engine uses it (Vulkan)
-        if build and not any(config.OMNI_BUILD.get(k) == build for k in config.installed_engines(self.cfg)):
-            shutil.rmtree(config.omni_dir(build), ignore_errors=True)
-            self.jobs.pop("omni-runtime:" + build, None)
+        for rt, builds, folder in (("omni", config.OMNI_BUILD, config.omni_dir), ("acpp", config.ACPP_BUILD, config.acpp_dir)):
+            build = builds.get(key)  # nor its omnivoice.cpp / audio.cpp build, unless another engine uses it (Vulkan)
+            if build and not any(builds.get(k) == build for k in config.installed_engines(self.cfg)):
+                shutil.rmtree(folder(build), ignore_errors=True)
+                self.jobs.pop(f"{rt}-runtime:{build}", None)
 
     # ---- Whisper on the graphics card (job key "whisper-gpu:<engine>") ----
 
@@ -338,31 +408,50 @@ class Downloads:
             log.exception("Whisper for the graphics card (%s) failed to download", key)
             job.update(status="failed", error=str(e) or e.__class__.__name__)
 
-    # ---- s2.cpp for S2 Pro, omnivoice.cpp for OmniVoice (job key "<runtime>-runtime:<build>") ----
+    # ---- s2.cpp for S2 Pro, omnivoice.cpp for OmniVoice, audio.cpp (job key "<runtime>-runtime:<build>") ----
 
     def ensure_runtimes(self) -> None:
-        """Fetch the s2.cpp / omnivoice.cpp build for the engine in use when one of its models is there but the build
-        isn't (after switching or reinstalling engines, or an update). Fails quietly; the model card's download
-        brings it too."""
+        """Fetch the s2.cpp / omnivoice.cpp / audio.cpp build for the engine in use when one of its models is there
+        but the build isn't (after switching or reinstalling engines, or an update). Fails quietly; the model card's
+        download brings it too."""
         installed = config.installed_models(self.cfg)
-        for rt in ("s2", "omni"):
+        for rt in ("s2", "omni", "acpp"):
             build = self._rt_missing(rt)
-            if not build or not self._rt_zips(rt)[build][1] or self.busy(f"{rt}-runtime:{build}"):
+            if not build or not self._rt_size(rt, build) or self.busy(f"{rt}-runtime:{build}"):
                 continue
             if not any(config.MODELS[k].get("runtime") == rt for k in installed):
                 continue
             if (self.jobs.get(f"{rt}-runtime:{build}") or {}).get("status") in ("failed", "cancelled"):
                 continue
             self._launch(f"{rt}-runtime:{build}", self._run_runtime(rt, build))
+        if (any(self._espeak_missing(config.MODELS[k]) for k in installed) and not self.busy("espeak")
+                and (self.jobs.get("espeak") or {}).get("status") not in ("failed", "cancelled")):
+            self._launch("espeak", self._run_espeak())
+
+    async def _run_espeak(self) -> None:
+        job = self.jobs["espeak"]
+        job["total"] = config.ESPEAK_MSI[1]
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(30, read=300)) as client:
+                await self._install_espeak(client, job)
+            job["status"] = "done"
+            log.info("eSpeak NG installed")
+            self._done("espeak")
+        except asyncio.CancelledError:
+            job["status"] = "cancelled"
+        except Exception as e:
+            log.exception("eSpeak NG failed to download")
+            job.update(status="failed", error=str(e) or e.__class__.__name__)
 
     async def _run_runtime(self, rt: str, build: str) -> None:
         job = self.jobs[f"{rt}-runtime:{build}"]
-        job["total"] = self._rt_zips(rt)[build][1]
+        job["total"] = self._rt_size(rt, build)
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(30, read=300)) as client:
-                await self._install_zips(client, [self._rt_zips(rt)[build]], *self._rt_place(rt, build), job)
+                await self._install_zips(client, self._rt_zips(rt, build), *self._rt_place(rt, build), job)
             job["status"] = "done"
-            log.info("%s installed for %s", "s2.cpp" if rt == "s2" else "omnivoice.cpp", build)
+            log.info("%s installed for %s", {"s2": "s2.cpp", "omni": "omnivoice.cpp", "acpp": "audio.cpp"}[rt], build)
+            self._done(f"{rt}-runtime")
         except asyncio.CancelledError:
             job["status"] = "cancelled"
         except Exception as e:

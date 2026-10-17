@@ -57,6 +57,16 @@ on S2 Pro's card on the Models page.
 If the engine part is missing (after switching engines, for example), click **Get it** on OmniVoice's card on the
 Models page. If it couldn't start, the details are in `omnivoice.log` (**Settings → Folders → Logs**).
 
+### Chatterbox, Kokoro or MOSS-TTS Nano: "engine part" or "pronunciation part is missing"
+
+Click **Get it** on the model's card on the Models page: it fetches audio.cpp for your engine, or eSpeak NG for
+Kokoro. If a part couldn't start, the details are in `audiocpp.log` (**Settings → Folders → Logs**).
+
+### "Kokoro speaks only with its own voices"
+
+Kokoro can't copy a voice from a clip. Pick one of the voices marked **Kokoro** on the Voices page, or another voice
+model for the voice you chose.
+
 ### The NVIDIA engine won't start, or Setup says the driver is too old
 
 Update your graphics driver from [nvidia.com](https://www.nvidia.com/Download/index.aspx) or the NVIDIA app, then

@@ -123,10 +123,15 @@ def create_app(cfg: dict) -> FastAPI:
         shutil.rmtree(config.DATA / "tmp", ignore_errors=True)  # leftovers of a crash
         tasks = [asyncio.create_task(worker.run()), asyncio.create_task(updater.watch()),
                  asyncio.create_task(transcripts.run())]
+        for t in tasks:  # a loop that stops by accident would otherwise do so silently
+            t.add_done_callback(lambda t: t.cancelled() or not t.exception() or
+                                log.error("Background task stopped", exc_info=t.exception()))
         log.info("%s on http://%s:%s  (batches: %s)", APP_NAME, cfg["host"], cfg["port"], store.root)
-        subtitles.GPU_TURN = engine.gpu_turn  # Whisper and S2 Pro / OmniVoice take turns on small graphics cards
+        subtitles.GPU_TURN = engine.gpu_turn  # Whisper and the voice servers take turns on small graphics cards
         downloads.ensure_whisper_gpu()  # e.g. after an update: Whisper's graphics card build, if it's missing
-        downloads.ensure_runtimes()     # and s2.cpp / omnivoice.cpp, if one of their models is there without it
+        downloads.ensure_runtimes()     # and s2.cpp / omnivoice.cpp / audio.cpp, if a model of theirs is there without it
+        downloads.on_done.append(lambda key: asyncio.create_task(ensure_kokoro_voices()))
+        asyncio.create_task(ensure_kokoro_voices())  # Kokoro there but its voices not added yet (e.g. a failed try)
         if mcp:
             async with mcp.session_manager.run():  # MCP endpoint for AI agents at /mcp
                 yield
@@ -246,6 +251,12 @@ def create_app(cfg: dict) -> FastAPI:
             raise HTTPException(400, f"{m['label']} doesn't speak {config.LANGUAGE_NAMES.get(lang, lang)}."
                                      + (f" Use {other} for it." if other else ""))
 
+    def check_voice_for(model: str, voice: str | None) -> None:
+        """Kokoro has its own voices only: a cloned voice is refused up front, in plain words."""
+        if voice and config.MODELS[model].get("family") == "kokoro_tts" and not (voices.get(voice) or {}).get("kokoro_voice"):
+            raise HTTPException(400, f"{config.MODELS[model]['label']} speaks only with its own voices. Pick one marked "
+                                     "Kokoro on the Voices page, or another voice model for this voice.")
+
     def check_model(key: str | None) -> str:
         key = key or cfg["default_model"]
         if key not in config.MODELS:  # also accept API ids
@@ -255,6 +266,11 @@ def create_app(cfg: dict) -> FastAPI:
         if problem := engine.ready_problem(key):
             raise HTTPException(400, problem)
         return key
+
+    def needs_words(key: str) -> bool:
+        """Whether a voice model copies a voice from its clip *and* what the clip says (Edit dialog, transcripts)."""
+        m = config.MODELS[key]
+        return m.get("runtime") in ("s2", "omni") or bool(m.get("words"))
 
     def model_for(lang: str) -> str:
         """The voice model to speak a sample in this language: the default one if it speaks it, else a downloaded one
@@ -284,6 +300,7 @@ def create_app(cfg: dict) -> FastAPI:
         s["voice"] = check_voice(raw.get("voice") if "voice" in raw else cfg["default_voice"])
         s["language"] = check_language(raw.get("language") or (voices.get(s["voice"]) or {}).get("language"))
         check_speaks(s["model"], s["language"])
+        check_voice_for(s["model"], s["voice"])
         s["seed"] = raw.get("seed")
         s["formats"] = [f for f in (s["formats"] or []) if f in ("wav", "mp3")] or ["wav", "mp3"]
         s["max_chars"] = max(150, min(1200, int(s["max_chars"])))
@@ -303,7 +320,8 @@ def create_app(cfg: dict) -> FastAPI:
             "engine": engine.status(),
             "models": [{"key": k, "label": m["label"], "short": m["short"], "kind": m["kind"], "installed": k in installed,
                         "license": m["license"], "noncommercial": bool(m.get("noncommercial")), "languages": m.get("languages"),
-                        "runtime": m.get("runtime", "llama"), "tags": bool(m.get("tags"))}
+                        "runtime": m.get("runtime", "llama"), "tags": bool(m.get("tags")),
+                        "words": needs_words(k)}
                        for k, m in config.MODELS.items()],
             "languages": config.LANGUAGE_NAMES,
             "sample_languages": list(PREVIEW_TEXT),  # a ready sentence for voice samples (else one is typed)
@@ -354,6 +372,7 @@ def create_app(cfg: dict) -> FastAPI:
             d["language"] = check_language(d["language"]) if d.get("language") else None
             if d["language"]:
                 check_speaks(settings["model"], d["language"])
+            check_voice_for(settings["model"], d["voice"])
             if not (d["voice"] or settings["voice"]):
                 raise HTTPException(400, "Pick a voice for the batch (or for every script).")
             scripts.append(d)
@@ -685,12 +704,46 @@ def create_app(cfg: dict) -> FastAPI:
             raise HTTPException(400, str(e))
         finally:
             src.unlink(missing_ok=True)
-        if any(config.MODELS[k].get("runtime") in ("s2", "omni") for k in config.installed_models(cfg)):
-            asyncio.create_task(transcribe_voice(v["id"]))  # ready for S2 Pro / OmniVoice, and editable, before needed
+        if any(needs_words(k) for k in config.installed_models(cfg)):
+            asyncio.create_task(transcribe_voice(v["id"]))  # ready for S2 Pro / OmniVoice…, and editable, before needed
         if not cfg["default_voice"]:
             cfg["default_voice"] = v["id"]
             config.save(cfg)
         return v
+
+    async def ensure_kokoro_voices() -> None:
+        """Kokoro can't copy a clip, so its own voices go into the library (once each: a deleted one isn't added
+        again): Kokoro says the language's sample sentence in the voice, which becomes the clip, with those words as
+        its transcript, so the cloning models can copy it too."""
+        model = next((k for k, m in config.MODELS.items() if m.get("family") == "kokoro_tts"), None)
+        if not model or model not in config.installed_models(cfg) or engine.ready_problem(model):
+            return
+        added = cfg.setdefault("kokoro_voices_added", [])
+        for vid, name, lang, about in config.KOKORO_VOICES:
+            if vid in added:
+                continue
+            text = PREVIEW_TEXT[lang]
+
+            async def job(vid=vid, lang=lang, text=text):
+                tmp = config.DATA / "tmp" / f"kokoro-{vid}.wav"
+                tmp.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    await engine.speak(model, text, language=lang, voice=None, seed=1, out=tmp, preset=vid)
+                    return audio.load(tmp)
+                finally:
+                    tmp.unlink(missing_ok=True)
+            try:
+                samples, sr = await worker.submit(job)
+                label = name if not voices.get(name) else f"{name} (Kokoro)"
+                await asyncio.to_thread(voices.add, name=label, filename=f"{vid}.wav", decoded=(samples, sr),
+                                        language=lang, notes=f"Kokoro's own voice: {about}.", source="kokoro",
+                                        extra={"kokoro_voice": vid, "transcript": text})
+            except Exception as e:  # tried again the next time the app starts
+                log.warning("Couldn't add Kokoro's voice %s: %s", vid, e)
+                return
+            added.append(vid)
+            config.save(cfg)
+            log.info("Added Kokoro's voice %s", vid)
 
     async def transcribe_voice(vid: str) -> None:
         """What a new voice's clip says, heard by Whisper in the background (S2 Pro and OmniVoice need it to copy
@@ -1382,6 +1435,7 @@ def create_app(cfg: dict) -> FastAPI:
                                      "or set a default voice in Settings.")
         lang = check_language(p.language or v.get("language"))
         check_speaks(check_model(p.model), lang)
+        check_voice_for(check_model(p.model), v["id"])
         try:
             # OpenAI allows 0.25-4; speech stays natural between 0.8 and 1.25, so the speed is kept in that range.
             track, sr = await worker.speech(p.input, voice=v["id"], language=lang, model=check_model(p.model),

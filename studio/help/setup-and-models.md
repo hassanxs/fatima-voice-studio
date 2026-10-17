@@ -44,6 +44,9 @@ If the recommended NVIDIA engine won't start, update your graphics driver from n
 | **Fish Audio S2 Pro · Q6** | The same for cards with 6 to 8 GB. | 4.5 GB |
 | **OmniVoice · Q8** | Fast and small, 96 languages. Every engine, including 4 GB cards and the CPU. | 945 MB |
 | **OmniVoice · Q4** | The same, compressed further: a third faster on the CPU. | 660 MB |
+| **Chatterbox** | Clones voices in 23 languages, incl. Hindi, Arabic, Swahili, Turkish. Graphics cards. | 2.1 GB |
+| **Kokoro** | Very fast, with its own 15 voices; over 2× real time even without a graphics card. | 190 MB |
+| **MOSS-TTS Nano** | Tiny, clones voices; over 2× real time even without a graphics card. | 190 MB |
 
 The two Qwen3-TTS downloads are the same model ([Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base)),
 free for commercial use (Apache 2.0), and speak 10 languages: English, Spanish, French, German, Italian, Portuguese,
@@ -91,6 +94,29 @@ the same clips as Qwen3-TTS.
   itself, and AI agents can't use it unless you allow it on the Connect page.
 - Pick it per batch, quick take or preset in the **Voice model** list on the Create page, or as the default in
   Settings. Long scripts are spoken in the usual parts (about 600 characters).
+
+### Chatterbox, Kokoro and MOSS-TTS Nano (audio.cpp)
+
+These three run on [audio.cpp](https://github.com/0xShug0/audio.cpp), an engine for many voice models. Its own
+official build for your engine (CUDA, Vulkan or CPU) downloads with the first of them; on NVIDIA · CUDA that's
+about 460 MB (audio.cpp plus NVIDIA's cuFFT library). All three are free for commercial use.
+
+- **Chatterbox** ([Resemble AI](https://huggingface.co/ResembleAI/chatterbox), MIT) copies a voice from its clip in
+  23 languages, including Hindi, Arabic, Swahili, Turkish, Polish and Korean. About 2.7× faster than real time on an
+  NVIDIA card in about 3 GB (Korean needs up to 6 GB). It needs a graphics card: on the processor it's about 4×
+  slower than real time.
+- **Kokoro** ([hexgrad](https://huggingface.co/hexgrad/Kokoro-82M), Apache 2.0) is tiny and very fast: over 10× faster
+  than real time on a graphics card and about 2× on the processor alone. It **can't copy a voice**: it has its own
+  voices, and the app adds 15 of them to your voice library (marked **Kokoro**) in English (American and British),
+  Spanish, French, Hindi, Italian, Brazilian Portuguese and Chinese. Use those voices with Kokoro; the other models
+  can copy them too. A voice you delete isn't added back. Kokoro also downloads eSpeak NG (12 MB, GPL v3, a separate
+  library it uses for pronunciation).
+- **MOSS-TTS Nano** ([OpenMOSS](https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M), Apache 2.0) copies a voice
+  from its clip and what the clip says (heard by Whisper, as for S2 Pro), in under 1 GB: over 10× faster than real
+  time on a graphics card and about 2.5× on the processor alone. The app offers it in English, Spanish, French,
+  German and Chinese, the languages it speaks well.
+- One model is loaded at a time; it unloads after a few idle minutes or when another voice model speaks. On cards
+  under 8 GB it steps aside while Whisper makes the subtitles.
 
 ## Whisper models (subtitles and transcripts)
 

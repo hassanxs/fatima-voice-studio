@@ -161,6 +161,10 @@ app under **Help** (works offline); and as Markdown in [`studio/help`](studio/he
 - **A second, more expressive voice model (Windows)** — Fish Audio S2 Pro: 80+ languages and emotion tags like
   `[whisper]` or `[excited]` in the text, about real time on an 8 GB NVIDIA card. Optional and non-commercial.
   [More](studio/help/setup-and-models.md#fish-audio-s2-pro-a-second-voice-model)
+- **More voice models (Windows), free for commercial use** — Chatterbox (clones voices in 23 languages incl. Hindi,
+  Arabic and Swahili), Kokoro (15 built-in voices, over 2× real time even on the processor) and MOSS-TTS Nano (tiny,
+  clones voices, fast on the processor), on [audio.cpp](https://github.com/0xShug0/audio.cpp).
+  [More](studio/help/setup-and-models.md#chatterbox-kokoro-and-moss-tts-nano-audiocpp)
 - **A fast voice model for every PC (Windows)** — OmniVoice: 96 languages, about 4× faster than real time on an
   NVIDIA card in under 2 GB of graphics memory, and it runs on the CPU too. Optional and non-commercial.
   [More](studio/help/setup-and-models.md#omnivoice-a-third-voice-model)
@@ -174,6 +178,9 @@ app under **Help** (works offline); and as Markdown in [`studio/help`](studio/he
 | Qwen3-TTS 1.7B · Q8 (default) / Q4 | Apache 2.0 — commercial use OK | 10 languages: English, Spanish, French, German, Italian, Portuguese, Russian, Japanese, Korean, Chinese |
 | Fish Audio S2 Pro · Q8 / Q6 (optional, Windows) | Fish Audio Research License — non-commercial; commercial use needs a licence from Fish Audio | 80+ languages, emotion tags; NVIDIA (CUDA) or AMD / Intel (Vulkan) engine. Built with Fish Audio. |
 | OmniVoice · Q8 / Q4 (optional, Windows) | CC-BY-NC 4.0 — non-commercial (changed from Apache 2.0 in July 2026) | 96 languages; every engine, including the CPU |
+| Chatterbox (optional, Windows) | MIT — commercial use OK | Clones voices in 23 languages; graphics card |
+| Kokoro (optional, Windows) | Apache 2.0 — commercial use OK | 15 built-in voices in 7 languages; fast on the CPU |
+| MOSS-TTS Nano (optional, Windows) | Apache 2.0 — commercial use OK | Clones voices; en, es, fr, de, zh; fast on the CPU |
 | Whisper base, small, medium, large-v3 turbo, large-v3 | MIT — commercial use OK | Subtitle timing and transcription, on the graphics card or the CPU |
 | UVR MDX-Net Voc_FT (voice separator) | MIT — commercial use OK | Takes a voice out of music |
 

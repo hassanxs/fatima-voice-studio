@@ -162,6 +162,60 @@ def omni_build(cfg: dict) -> str | None:
     return build if build in OMNI_RUNTIME and (engine_dir(cfg, key) / ENGINE_EXE).exists() else None
 
 
+# The fourth voice engine: audio.cpp's server (https://github.com/0xShug0/audio.cpp, Apache 2.0), which runs many
+# model families; the app uses a few (MODELS with runtime "acpp"). Its own official builds, one per kind of engine:
+# CUDA 13.3 (cuBLAS/cudart from the voice engine's folder, plus NVIDIA's cuFFT, which audio.cpp also loads), Vulkan
+# (also for the older-driver CUDA engine) and CPU. Each is a list of zips unpacked into one folder. (url, size, sha256)
+ACPP_RELEASE = "v0.9.2"
+ACPP_EXE = "audiocpp_server.exe"
+_AC = f"https://github.com/0xShug0/audio.cpp/releases/download/{ACPP_RELEASE}/audio-{ACPP_RELEASE}-bin-windows-x64-"
+ACPP_RUNTIME = {
+    "cuda": [(_AC + "cuda13.3.zip", 275142402, "ddf7474656e4c47a1bc5b5a53a268709d968d87132367d646baae5a77c34391f"),
+             ("https://developer.download.nvidia.com/compute/cuda/redist/libcufft/windows-x86_64/"
+              "libcufft-windows-x86_64-12.3.0.29-archive.zip", 182627436,
+              "83df908ae67e2b3a86201de8463562ab49dd9ee8b3b5efc3fdc2e681b14b5dd9")],
+    "vulkan": [(_AC + "vulkan.zip", 62705751, "271402eae94195b9e2204e9f07e576bd0df879c75bafb0fa2f940830648d63f9")],
+    "cpu": [(_AC + "cpu.zip", 28258383, "66df445ba41f02ed2694e8d6933525163a3cc10adccf5cc40d5ad927c7774529")],
+}
+ACPP_BUILD = {"cuda": "cuda", "cuda12": "vulkan", "vulkan": "vulkan", "cpu": "cpu"}  # voice engine -> build
+
+# eSpeak NG (GPL v3, a separate library audio.cpp loads): how Kokoro pronounces most languages. Its official Windows
+# installer is unpacked into ESPEAK_DIR (nothing is installed on the PC). Fetched with Kokoro.
+ESPEAK_MSI = ("https://github.com/espeak-ng/espeak-ng/releases/download/1.52.0/espeak-ng.msi", 12765862,
+              "7f673c709ea5dd579d3b5ebb98688cc575328a6ab7438d2bc405b88cedaeafb9")
+
+
+def acpp_dir(build: str) -> Path:
+    return HOME / "engine" / f"audiocpp-{build}"
+
+
+def acpp_build(cfg: dict) -> str | None:
+    """The audio.cpp build the engine in use needs, if that engine is installed."""
+    key = cfg["engine"]
+    build = ACPP_BUILD.get(key)
+    return build if build in ACPP_RUNTIME and (engine_dir(cfg, key) / ENGINE_EXE).exists() else None
+
+
+def espeak_dir() -> Path:
+    return HOME / "engine" / "espeak-ng"
+
+
+# Kokoro's built-in voices the app adds to the voice library (Kokoro can't copy a clip): (voice id, name, language,
+# description). The first letter of the id is its accent: a American, b British, e Spanish, f French, h Hindi,
+# i Italian, p Brazilian Portuguese, z Chinese.
+KOKORO_VOICES = [
+    ("af_heart", "Heart", "en", "American English, female"), ("am_michael", "Michael", "en", "American English, male"),
+    ("bf_emma", "Emma", "en", "British English, female"), ("bm_george", "George", "en", "British English, male"),
+    ("ef_dora", "Dora", "es", "Spanish, female"), ("em_alex", "Alex", "es", "Spanish, male"),
+    ("ff_siwis", "Siwis", "fr", "French, female"),
+    ("hf_alpha", "Alpha", "hi", "Hindi, female"), ("hm_omega", "Omega", "hi", "Hindi, male"),
+    ("if_sara", "Sara", "it", "Italian, female"), ("im_nicola", "Nicola", "it", "Italian, male"),
+    ("pf_dora", "Dora BR", "pt", "Brazilian Portuguese, female"), ("pm_alex", "Alex BR", "pt", "Brazilian Portuguese, male"),
+    ("zf_xiaobei", "Xiaobei", "zh", "Chinese, female"), ("zm_yunxi", "Yunxi", "zh", "Chinese, male"),
+]
+KOKORO_LANG = {"a": "en-us", "b": "en-gb", "e": "es", "f": "fr-fr", "h": "hi", "i": "it", "p": "pt-br", "z": "zh"}
+
+
 def whisper_gpu_dir(engine: str) -> Path:
     return HOME / "engine" / f"whisper-gpu-{engine}"
 
@@ -181,6 +235,7 @@ _QWEN = HF + "ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF/resolve/main/"
 _WHISPER = HF + "ggerganov/whisper.cpp/resolve/main/"
 _S2PRO = HF + "rodrigomt/s2-pro-gguf/resolve/main/"  # S2 Pro as GGUF for s2.cpp (decoder kept in F16)
 _OMNI = HF + "Serveurperso/OmniVoice-GGUF/resolve/main/"  # OmniVoice from omnivoice.cpp's author
+_ACG = HF + "audio-cpp/audio.cpp-gguf/resolve/main/"  # audio.cpp's own GGUF packages
 # Every file a model can need (url, size, sha256); shared files are downloaded once.
 FILES = {
     "Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf": (_QWEN + "Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf", 1847874400,
@@ -201,6 +256,12 @@ FILES = {
                                    "4836ba5affcb83c04d08b3e96b6e48ac839947ee3864188739807b68e0e159c6"),
     "omnivoice-tokenizer-Q4_K_M.gguf": (_OMNI + "omnivoice-tokenizer-Q4_K_M.gguf", 252474112,
                                         "988fc32bc699bce361c44e9af8383be9811960441f293eb5ab4ec6bf6386378d"),
+    "kokoro-82m-q8_0.gguf": (_ACG + "Kokoro-82M-GGUF/kokoro-82m-q8_0.gguf", 189549408,
+                             "5d800fd204029302c10313daeafdb31c875c7c29ae31974d0d156cc7f512d1d0"),
+    "moss-tts-nano-100m-q8_0.gguf": (_ACG + "MOSS-TTS-Nano-100M-GGUF/moss-tts-nano-100m-q8_0.gguf", 193337984,
+                                     "3b9c138ce4093514b6493b77abaf3e62f4d2ac58412616d2f7ee89cca28be388"),
+    "chatterbox-q8_0.gguf": (_ACG + "Chatterbox-GGUF/chatterbox-q8_0.gguf", 2088393668,
+                             "d586dd1aa59613cab8046176fb7ca5ba191c02a9b10ffa5b0d892ed22b470656"),
     "ggml-base-q5_1.bin": (_WHISPER + "ggml-base-q5_1.bin", 59707625,
                            "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898"),
     "ggml-small-q5_1.bin": (_WHISPER + "ggml-small-q5_1.bin", 190085487,
@@ -305,6 +366,37 @@ MODELS = {
         "languages": OMNI_LANGUAGES, "vram_gb": 1.4,
         "about": "Same model, compressed further. On a graphics card it's as fast as Q8; on the processor it's about "
                  "a third faster. Slightly less polished."},
+    # runtime "acpp": spoken by audio.cpp's server (ACPP_RUNTIME) on every engine; "family" is audio.cpp's name for
+    # it. "clone": copies the voice's clip ("words": with what the clip says). Kokoro has its own voices instead
+    # (KOKORO_VOICES, added to the library). vram_gb from an RTX 5060; x_rt: speed there, for the progress ring.
+    "chatterbox": {
+        "kind": "voice", "runtime": "acpp", "family": "chatterbox", "clone": True, "engines": list(ACPP_BUILD),
+        "label": "Chatterbox", "short": "Chatterbox · 23 languages incl. Hindi, Arabic, Swahili", "api_id": "chatterbox",
+        "files": ["chatterbox-q8_0.gguf"], "license": "MIT — commercial use OK", "page": HF + "ResembleAI/chatterbox",
+        "languages": ["ar", "da", "de", "el", "en", "es", "fi", "fr", "hi", "it", "ko", "ms", "nl", "no", "pl", "pt",
+                      "sv", "sw", "tr"],
+        "vram_gb": 3.5, "x_rt": 2.7,
+        "about": "Resemble AI's open model: clones a voice from a few seconds of audio in 23 languages, including Hindi, "
+                 "Arabic, Swahili and Turkish. About 2.7× faster than real time on an RTX 5060 laptop GPU, in about "
+                 "3 GB. Needs a graphics card: on the processor it's about 4× slower than real time."},
+    "kokoro": {
+        "kind": "voice", "runtime": "acpp", "family": "kokoro_tts", "engines": list(ACPP_BUILD), "espeak": True,
+        "label": "Kokoro", "short": "Kokoro · very fast, its own 15 voices", "api_id": "kokoro",
+        "files": ["kokoro-82m-q8_0.gguf"], "license": "Apache 2.0 — commercial use OK", "page": HF + "hexgrad/Kokoro-82M",
+        "languages": ["en", "es", "fr", "hi", "it", "pt", "zh"], "vram_gb": 1.5, "x_rt": 12,
+        "about": "A tiny, very fast model with its own voices instead of copied ones: 15 of them are added to your "
+                 "voice library (marked Kokoro). Over 10× faster than real time on a graphics card, and about 2× on "
+                 "the processor alone, so it suits PCs without a graphics card. English, Spanish, French, Hindi, "
+                 "Italian, Brazilian Portuguese and Chinese."},
+    "moss-tts-nano": {
+        "kind": "voice", "runtime": "acpp", "family": "moss_tts_nano", "clone": True, "words": True,
+        "engines": list(ACPP_BUILD), "label": "MOSS-TTS Nano", "short": "MOSS-TTS Nano · tiny, clones, fast on CPU",
+        "api_id": "moss-tts-nano", "files": ["moss-tts-nano-100m-q8_0.gguf"], "license": "Apache 2.0 — commercial use OK",
+        "page": HF + "OpenMOSS-Team/MOSS-TTS-Nano-100M", "languages": ["en", "es", "fr", "de", "zh"],
+        "vram_gb": 1.0, "x_rt": 12,
+        "about": "A tiny model that still clones a voice from a few seconds of audio: over 10× faster than real "
+                 "time on a graphics card, in under 1 GB, and about 2.5× on the processor alone. Best in English, "
+                 "Spanish, French, German and Chinese (the languages offered here)."},
     # Subtitle timing only needs Whisper to find the words (the text comes from the script), so small is plenty;
     # the bigger ones are for transcribing audio you didn't write (the transcription API, the MCP transcribe tool).
     "whisper-base": {
