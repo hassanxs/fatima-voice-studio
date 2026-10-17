@@ -45,6 +45,8 @@ If the recommended NVIDIA engine won't start, update your graphics driver from n
 | **OmniVoice · Q8** | Fast and small, 96 languages. Every engine, including 4 GB cards and the CPU. | 945 MB |
 | **OmniVoice · Q4** | The same, compressed further: a third faster on the CPU. | 660 MB |
 | **Chatterbox** | Clones voices in 23 languages, incl. Hindi, Arabic, Swahili, Turkish. Graphics cards. | 2.1 GB |
+| **VoxCPM2** | Clones voices in 30 languages, 48 kHz. Graphics cards with 8 GB or more. | 3.0 GB |
+| **CosyVoice 3** | Fast cloning in 8 languages, incl. Cantonese. Graphics cards. | 2.3 GB |
 | **Kokoro** | Very fast, with its own 15 voices; over 2× real time even without a graphics card. | 190 MB |
 | **MOSS-TTS Nano** | Tiny, clones voices; over 2× real time even without a graphics card. | 190 MB |
 
@@ -95,16 +97,23 @@ the same clips as Qwen3-TTS.
 - Pick it per batch, quick take or preset in the **Voice model** list on the Create page, or as the default in
   Settings. Long scripts are spoken in the usual parts (about 600 characters).
 
-### Chatterbox, Kokoro and MOSS-TTS Nano (audio.cpp)
+### Chatterbox, VoxCPM2, CosyVoice 3, Kokoro and MOSS-TTS Nano (audio.cpp)
 
-These three run on [audio.cpp](https://github.com/0xShug0/audio.cpp), an engine for many voice models. Its own
+These five run on [audio.cpp](https://github.com/0xShug0/audio.cpp), an engine for many voice models. Its own
 official build for your engine (CUDA, Vulkan or CPU) downloads with the first of them; on NVIDIA · CUDA that's
-about 460 MB (audio.cpp plus NVIDIA's cuFFT library). All three are free for commercial use.
+about 460 MB (audio.cpp plus NVIDIA's cuFFT library). All five are free for commercial use.
 
 - **Chatterbox** ([Resemble AI](https://huggingface.co/ResembleAI/chatterbox), MIT) copies a voice from its clip in
   23 languages, including Hindi, Arabic, Swahili, Turkish, Polish and Korean. About 2.7× faster than real time on an
   NVIDIA card in about 3 GB (Korean needs up to 6 GB). It needs a graphics card: on the processor it's about 10×
   slower than real time.
+- **VoxCPM2** ([OpenBMB](https://huggingface.co/openbmb/VoxCPM2), Apache 2.0) copies a voice from its clip and what
+  the clip says in 30 languages, including Hindi, Arabic, Thai, Vietnamese, Turkish and Swahili, at 48 kHz. About
+  2.8× faster than real time on an NVIDIA card, in about 6 GB: for cards with 8 GB or more.
+- **CosyVoice 3** ([Alibaba FunAudioLLM](https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B-2512), Apache 2.0)
+  copies a voice from its clip and what the clip says in English, Spanish, French, German, Italian, Chinese, Korean and
+  Cantonese, about 5× faster than real time in about 3 GB. (It also knows Russian and Japanese, but copies a voice from
+  another language poorly there, so they aren't offered.)
 - **Kokoro** ([hexgrad](https://huggingface.co/hexgrad/Kokoro-82M), Apache 2.0) is tiny and very fast: over 10× faster
   than real time on a graphics card and about 2× on the processor alone. It **can't copy a voice**: it has its own
   voices, and the app adds 15 of them to your voice library (marked **Kokoro**) in English (American and British),
@@ -116,7 +125,7 @@ about 460 MB (audio.cpp plus NVIDIA's cuFFT library). All three are free for com
   time on a graphics card and about 2.5× on the processor alone. The app offers it in English, Spanish, French,
   German and Chinese, the languages it speaks well.
 - One model is loaded at a time; it unloads after a few idle minutes or when another voice model speaks. On cards
-  under 8 GB it steps aside while Whisper makes the subtitles.
+  under 12 GB it steps aside while Whisper makes the subtitles.
 
 ## Whisper models (subtitles and transcripts)
 

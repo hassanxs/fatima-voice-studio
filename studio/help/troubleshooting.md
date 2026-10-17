@@ -57,7 +57,7 @@ on S2 Pro's card on the Models page.
 If the engine part is missing (after switching engines, for example), click **Get it** on OmniVoice's card on the
 Models page. If it couldn't start, the details are in `omnivoice.log` (**Settings → Folders → Logs**).
 
-### Chatterbox, Kokoro or MOSS-TTS Nano: "engine part" or "pronunciation part is missing"
+### Chatterbox, VoxCPM2, CosyVoice 3, Kokoro or MOSS-TTS Nano: "engine part" or "pronunciation part is missing"
 
 Click **Get it** on the model's card on the Models page: it fetches audio.cpp for your engine, or eSpeak NG for
 Kokoro. If a part couldn't start, the details are in `audiocpp.log` (**Settings → Folders → Logs**).

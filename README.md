@@ -162,9 +162,10 @@ app under **Help** (works offline); and as Markdown in [`studio/help`](studio/he
   `[whisper]` or `[excited]` in the text, about real time on an 8 GB NVIDIA card. Optional and non-commercial.
   [More](studio/help/setup-and-models.md#fish-audio-s2-pro-a-second-voice-model)
 - **More voice models (Windows), free for commercial use** — Chatterbox (clones voices in 23 languages incl. Hindi,
-  Arabic and Swahili), Kokoro (15 built-in voices, over 2× real time even on the processor) and MOSS-TTS Nano (tiny,
-  clones voices, fast on the processor), on [audio.cpp](https://github.com/0xShug0/audio.cpp).
-  [More](studio/help/setup-and-models.md#chatterbox-kokoro-and-moss-tts-nano-audiocpp)
+  Arabic and Swahili), VoxCPM2 (30 languages, 48 kHz), CosyVoice 3 (fast, incl. Cantonese), Kokoro (15 built-in
+  voices, over 2× real time even on the processor) and MOSS-TTS Nano (tiny, clones voices, fast on the processor), on
+  [audio.cpp](https://github.com/0xShug0/audio.cpp).
+  [More](studio/help/setup-and-models.md#chatterbox-voxcpm2-cosyvoice-3-kokoro-and-moss-tts-nano-audiocpp)
 - **A fast voice model for every PC (Windows)** — OmniVoice: 96 languages, about 4× faster than real time on an
   NVIDIA card in under 2 GB of graphics memory, and it runs on the CPU too. Optional and non-commercial.
   [More](studio/help/setup-and-models.md#omnivoice-a-third-voice-model)
@@ -179,6 +180,8 @@ app under **Help** (works offline); and as Markdown in [`studio/help`](studio/he
 | Fish Audio S2 Pro · Q8 / Q6 (optional, Windows) | Fish Audio Research License — non-commercial; commercial use needs a licence from Fish Audio | 80+ languages, emotion tags; NVIDIA (CUDA) or AMD / Intel (Vulkan) engine. Built with Fish Audio. |
 | OmniVoice · Q8 / Q4 (optional, Windows) | CC-BY-NC 4.0 — non-commercial (changed from Apache 2.0 in July 2026) | 96 languages; every engine, including the CPU |
 | Chatterbox (optional, Windows) | MIT — commercial use OK | Clones voices in 23 languages; graphics card |
+| VoxCPM2 (optional, Windows) | Apache 2.0 — commercial use OK | Clones voices in 30 languages, 48 kHz; cards with 8 GB+ |
+| CosyVoice 3 (optional, Windows) | Apache 2.0 — commercial use OK | Clones voices in 8 languages incl. Cantonese; graphics card |
 | Kokoro (optional, Windows) | Apache 2.0 — commercial use OK | 15 built-in voices in 7 languages; fast on the CPU |
 | MOSS-TTS Nano (optional, Windows) | Apache 2.0 — commercial use OK | Clones voices; en, es, fr, de, zh; fast on the CPU |
 | Whisper base, small, medium, large-v3 turbo, large-v3 | MIT — commercial use OK | Subtitle timing and transcription, on the graphics card or the CPU |
@@ -195,6 +198,7 @@ About page when an update is ready. Older installers stay on the [releases page]
 
 | Version | What changed |
 |---|---|
+| [0.4.1](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.1) | Two more voice models, free for commercial use: VoxCPM2 (30 languages, 48 kHz) and CosyVoice 3 (fast, incl. Cantonese). |
 | [0.4.0](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.0) | Four more voice models: Chatterbox (23 languages incl. Hindi, Arabic, Swahili), Kokoro (15 voices, fast without a graphics card), MOSS-TTS Nano (tiny) and OmniVoice (96 languages, non-commercial). 15 more script languages. |
 | [0.3.4](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.3.4) | Linux: S2 Pro downloads on the Models page work. Mac: S2 Pro on Metal. |
 | [0.3.3](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.3.3) | Small graphics cards (2-3 GB) no longer run out of memory. Linux: one-command install on every major distribution, with CUDA or Vulkan engines and S2 Pro. |

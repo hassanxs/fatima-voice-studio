@@ -66,8 +66,8 @@ Each voice has a card with its clip, its language and length, and:
 - **Hear it speak** — reads a sample sentence in the voice's language, so you hear the voice as the model makes it
   (not just the original clip).
 - **Edit** — change the name, language or notes, or prepare the clip again (below). With S2 Pro,
-  OmniVoice or MOSS-TTS Nano downloaded, it also shows **What the clip says**: they copy a voice from the clip *and*
-  its words. Whisper writes them down
+  OmniVoice, VoxCPM2, CosyVoice 3 or MOSS-TTS Nano downloaded, it also shows **What the clip says**: they copy a voice
+  from the clip *and* its words. Whisper writes them down
   by itself; fix a word it got wrong, or empty the box to have it heard again.
 - **Make default** (star icon) — the voice picked for you on the Create page. The default voice has a *Default*
   label and a filled star.

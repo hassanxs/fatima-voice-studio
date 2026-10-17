@@ -263,6 +263,10 @@ FILES = {
                                      "3b9c138ce4093514b6493b77abaf3e62f4d2ac58412616d2f7ee89cca28be388"),
     "chatterbox-q8_0.gguf": (_ACG + "Chatterbox-GGUF/chatterbox-q8_0.gguf", 2088393668,
                              "d586dd1aa59613cab8046176fb7ca5ba191c02a9b10ffa5b0d892ed22b470656"),
+    "cosyvoice3-q8_0.gguf": (_ACG + "CosyVoice3-GGUF/cosyvoice3-q8_0.gguf", 2257658080,
+                             "ff31bb29ba5723809ec817c9fcc09a5f88d5d8ef6cfbc623edb5a7d7be8a6fca"),
+    "voxcpm2-q8_0.gguf": (_ACG + "VoxCPM2-GGUF/voxcpm2-q8_0.gguf", 2955000480,
+                          "c8e01ab4416011e12a28f24ede298a1aa5ce64b43f8e8aaad53b1e2fe7c96432"),
     "ggml-base-q5_1.bin": (_WHISPER + "ggml-base-q5_1.bin", 59707625,
                            "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898"),
     "ggml-small-q5_1.bin": (_WHISPER + "ggml-small-q5_1.bin", 190085487,
@@ -389,6 +393,27 @@ MODELS = {
                  "voice library (marked Kokoro). Over 10× faster than real time on a graphics card, and about 2× on "
                  "the processor alone, so it suits PCs without a graphics card. English, Spanish, French, Hindi, "
                  "Italian, Brazilian Portuguese and Chinese."},
+    "voxcpm2": {
+        "kind": "voice", "runtime": "acpp", "family": "voxcpm2", "clone": True, "words": True,
+        "engines": list(ACPP_BUILD), "label": "VoxCPM2", "short": "VoxCPM2 · 30 languages, 48 kHz",
+        "api_id": "voxcpm2", "files": ["voxcpm2-q8_0.gguf"], "license": "Apache 2.0 — commercial use OK",
+        "page": HF + "openbmb/VoxCPM2",
+        "languages": ["ar", "my", "zh", "da", "nl", "en", "fi", "fr", "de", "el", "he", "hi", "id", "it", "ja", "km",
+                      "ko", "lo", "ms", "no", "pl", "pt", "ru", "es", "sw", "sv", "tl", "th", "tr", "vi"],
+        "vram_gb": 6.5, "x_rt": 2.8,
+        "about": "OpenBMB's 2-billion-parameter model: clones a voice in 30 languages (incl. Hindi, Arabic, Thai, "
+                 "Vietnamese, Turkish, Swahili) and speaks at 48 kHz. About 2.8× faster than real time on an RTX 5060 "
+                 "laptop GPU, in about 6 GB: for graphics cards with 8 GB or more."},
+    "cosyvoice3": {
+        "kind": "voice", "runtime": "acpp", "family": "cosyvoice3", "clone": True, "words": True,
+        "lang_options": False, "engines": list(ACPP_BUILD), "label": "CosyVoice 3",
+        "short": "CosyVoice 3 · fast, incl. Cantonese", "api_id": "cosyvoice3", "files": ["cosyvoice3-q8_0.gguf"],
+        "license": "Apache 2.0 — commercial use OK", "page": HF + "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
+        "languages": ["en", "es", "fr", "de", "it", "zh", "ko", "yue"], "vram_gb": 3.0, "x_rt": 5.5,
+        "about": "Alibaba's 0.5-billion-parameter model: clones a voice in English, Spanish, French, German, Italian, "
+                 "Chinese, Korean and Cantonese, about 5× faster than real time on an RTX 5060 laptop GPU, in about "
+                 "3 GB. (It also knows Russian and Japanese, but copies a voice from another language poorly in "
+                 "those, so they're left out.)"},
     "moss-tts-nano": {
         "kind": "voice", "runtime": "acpp", "family": "moss_tts_nano", "clone": True, "words": True,
         "engines": list(ACPP_BUILD), "label": "MOSS-TTS Nano", "short": "MOSS-TTS Nano · tiny, clones, fast on CPU",

@@ -2,6 +2,11 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
+## 0.4.1
+- New voice model (Windows): VoxCPM2. Copies a voice in 30 languages (Hindi, Arabic, Thai, Vietnamese, Turkish…) at 48 kHz. Free for commercial use; graphics cards with 8 GB or more.
+- New voice model (Windows): CosyVoice 3. Fast; copies a voice in English, Spanish, French, German, Italian, Chinese, Korean and Cantonese. Free for commercial use.
+- On graphics cards under 12 GB, the audio.cpp models now step aside while the subtitles are made, so the larger ones have room.
+
 ## 0.4.0
 - New voice model (Windows): Chatterbox. Copies a voice in 23 languages, including Hindi, Arabic, Swahili and Turkish. Free for commercial use; needs a graphics card.
 - New voice model (Windows): Kokoro. Very fast, with its own 15 voices, which are added to your voice library (marked Kokoro). Over 2× faster than real time even without a graphics card. Free for commercial use.

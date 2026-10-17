@@ -67,10 +67,12 @@ and checks each file against its published SHA-256.
 | s2.cpp (S2 Pro engine, `s2.exe`), built by this project with pull requests #50-#52 and a seed option | Fish Audio Research License, incl. ggml (MIT) | https://github.com/rodrigomatta/s2.cpp; builds: https://github.com/hassanxs/fatima-voice-studio/releases/tag/s2cpp-2c33261 (LICENSE.md and NOTICE.txt inside; they use the CUDA files of the engine download) |
 | OmniVoice (GGUF, Q8 and Q4), optional third voice model, with the Higgs Audio v2 audio tokenizer (Boson AI) | CC-BY-NC 4.0 (non-commercial; the code is Apache 2.0); the tokenizer is under Boson AI's own licence | https://huggingface.co/k2-fsa/OmniVoice, GGUF by Serveurperso (https://huggingface.co/Serveurperso/OmniVoice-GGUF) |
 | omnivoice.cpp (OmniVoice engine, `tts-server.exe`), built by this project with a steps option | MIT, incl. ggml (MIT) | https://github.com/ServeurpersoCom/omnivoice.cpp; builds: https://github.com/hassanxs/fatima-voice-studio/releases/tag/omnivoice-1a468d8 (LICENSE.txt and NOTICE.txt inside; the CUDA build uses the CUDA files of the engine download) |
-| audio.cpp (engine for Chatterbox, Kokoro and MOSS-TTS Nano, `audiocpp_server.exe`), its official v0.9.2 builds | Apache 2.0, incl. ggml (MIT) | https://github.com/0xShug0/audio.cpp |
+| audio.cpp (engine for Chatterbox, VoxCPM2, CosyVoice 3, Kokoro and MOSS-TTS Nano, `audiocpp_server.exe`), its official v0.9.2 builds | Apache 2.0, incl. ggml (MIT) | https://github.com/0xShug0/audio.cpp |
 | NVIDIA cuFFT 12.3 (with audio.cpp's CUDA build) | NVIDIA CUDA EULA | https://developer.download.nvidia.com/compute/cuda/redist/libcufft/ |
 | eSpeak NG 1.52 (pronunciation for Kokoro; a separate library, unpacked from its official installer) | GPL-3.0 | https://github.com/espeak-ng/espeak-ng |
 | Chatterbox (GGUF, Q8), optional voice model | MIT | https://huggingface.co/ResembleAI/chatterbox, GGUF by audio.cpp (https://huggingface.co/audio-cpp/audio.cpp-gguf) |
+| VoxCPM2 (GGUF, Q8), optional voice model | Apache 2.0 | https://huggingface.co/openbmb/VoxCPM2, GGUF by audio.cpp |
+| Fun-CosyVoice3 0.5B (GGUF, Q8), optional voice model | Apache 2.0 | https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B-2512, GGUF by audio.cpp |
 | Kokoro 82M (GGUF, Q8), optional voice model, and its voices | Apache 2.0 | https://huggingface.co/hexgrad/Kokoro-82M, GGUF by audio.cpp |
 | MOSS-TTS Nano 100M (GGUF, Q8), optional voice model | Apache 2.0 | https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M, GGUF by audio.cpp |
 | Whisper base, small, medium, large-v3 turbo, large-v3 (ggml) | MIT | https://huggingface.co/openai, ggml by ggerganov |

@@ -37,9 +37,9 @@ No. There's no subscription and no per-minute price: it runs on your own PC.
 Qwen3-TTS speaks English, Spanish, French, German, Italian, Portuguese, Russian, Japanese, Korean and Chinese.
 The optional Fish Audio S2 Pro speaks 80+ languages, including Hindi, Urdu, Arabic, Turkish and Polish (see
 [Setup and models](setup-and-models.md#fish-audio-s2-pro-a-second-voice-model)), and the optional OmniVoice speaks
-96, for non-commercial use (see [OmniVoice](setup-and-models.md#omnivoice-a-third-voice-model)). Chatterbox adds 23
-languages free for commercial use, including Hindi, Arabic, Swahili and Turkish (see
-[Chatterbox, Kokoro and MOSS-TTS Nano](setup-and-models.md#chatterbox-kokoro-and-moss-tts-nano-audiocpp)). *Numbers as words* works in English,
+96, for non-commercial use (see [OmniVoice](setup-and-models.md#omnivoice-a-third-voice-model)). Chatterbox (23 languages)
+and VoxCPM2 (30) are free for commercial use, including Hindi, Arabic, Swahili and Turkish (see
+[the audio.cpp models](setup-and-models.md#chatterbox-voxcpm2-cosyvoice-3-kokoro-and-moss-tts-nano-audiocpp)). *Numbers as words* works in English,
 Spanish, French, German, Italian and Portuguese.
 
 ## How fast is it?

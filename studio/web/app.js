@@ -1190,7 +1190,7 @@ async function loadModels() {
   const group = (kind, title, help, extra = '') => `<div class="group-title">${title}</div><p class="help" style="margin:-6px 0 12px">${help}</p>${extra}`
     + models.filter((m) => m.kind === kind).map(modelCard).join('');
   const [tools, wg] = await Promise.all([api('/api/tools'), api('/api/whisper-gpu').catch(() => null)]);
-  setHtml($('models-list'), group('voice', 'Voice models', 'Speak your scripts. Qwen3-TTS, OmniVoice, Chatterbox, Kokoro and MOSS-TTS Nano run on every engine chosen on the Setup page; S2 Pro on the NVIDIA · CUDA or AMD / Intel · Vulkan engine.')
+  setHtml($('models-list'), group('voice', 'Voice models', 'Speak your scripts. Qwen3-TTS, OmniVoice and the audio.cpp models (Chatterbox, VoxCPM2, CosyVoice 3, Kokoro, MOSS-TTS Nano) run on every engine chosen on the Setup page; S2 Pro on the NVIDIA · CUDA or AMD / Intel · Vulkan engine.')
     + group('subtitles', 'Subtitles and transcripts', 'Time the SRT subtitles of every finished script, and power the Transcribe page and the transcription API. They run on your graphics card with a CUDA or Vulkan engine, otherwise on the processor.', whisperWhere(wg, models.some((m) => m.kind === 'subtitles' && m.installed)))
     + group('separation', 'Voice separator', 'Takes a voice out of music or background sound when you add a voice from a video or a song.')
     + `<div class="group-title">Tools</div><p class="help" style="margin:-6px 0 12px">Programs the app uses for some file types.</p>`

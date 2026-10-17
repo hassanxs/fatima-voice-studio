@@ -25,7 +25,7 @@ from . import config, hardware, runtime, s2engine, text as textmod
 log = logging.getLogger("studio.acppengine")
 
 IDLE_STOP_S = 300   # free the graphics card after this long without a part
-SHARE_GB = 8        # below this much graphics memory, the model is unloaded while Whisper uses the card
+SHARE_GB = 12       # below this much graphics memory, the model is unloaded while Whisper uses the card (VoxCPM2: ~7 GB)
 START_TIMEOUT_S = 60
 DEVICE = re.compile(r"^Vulkan:(\d+) .*\[(GPU|IGPU)\]", re.M)
 MAX_LOG = 2_000_000  # bytes: audiocpp.log is started afresh (the old one kept as audiocpp.old.log) when bigger
@@ -295,7 +295,8 @@ class AcppServer:
             body["language"] = kokoro_language(vid, language)
         else:
             body["language"] = language
-        body["options"] = {"language": body["language"]}
+        if m.get("lang_options", True):  # CosyVoice 3 refuses it in options
+            body["options"] = {"language": body["language"]}
         if m["family"] != "kokoro_tts":
             if voice:
                 if m.get("words"):  # Whisper before the server takes the card
