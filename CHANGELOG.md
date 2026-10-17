@@ -2,6 +2,10 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
+## 0.4.2
+- Fixed: with some voices, takes started with an extra bit of word (like "…cado" before the first sentence), mostly with OmniVoice. The clip picked from a long recording could end in the middle of a word; it now ends at a real pause.
+- Voice cards warn when a clip ends in the middle of a word (also for voices you already have), with how to fix it in Edit.
+
 ## 0.4.1
 - New voice model (Windows): VoxCPM2. Copies a voice in 30 languages (Hindi, Arabic, Thai, Vietnamese, Turkish…) at 48 kHz. Free for commercial use; graphics cards with 8 GB or more.
 - New voice model (Windows): CosyVoice 3. Fast; copies a voice in English, Spanish, French, German, Italian, Chinese, Korean and Cantonese. Free for commercial use.

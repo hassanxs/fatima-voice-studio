@@ -62,6 +62,13 @@ Models page. If it couldn't start, the details are in `omnivoice.log` (**Setting
 Click **Get it** on the model's card on the Models page: it fetches audio.cpp for your engine, or eSpeak NG for
 Kokoro. If a part couldn't start, the details are in `audiocpp.log` (**Settings → Folders → Logs**).
 
+### An extra word or sound at the very start of a take
+
+If a take starts with a bit of a word that isn't in your script (often the end of the last word in the voice's clip),
+the voice's clip ends in the middle of a word, and the voice model finished that word before reading. The voice's
+card says "The clip ends in the middle of a word". Open **Edit** on the voice and set **to (seconds)** a little
+later, where the speaker pauses, then make the take again.
+
 ### "Kokoro speaks only with its own voices"
 
 Kokoro can't copy a voice from a clip. Pick one of the voices marked **Kokoro** on the Voices page, or another voice

@@ -198,6 +198,7 @@ About page when an update is ready. Older installers stay on the [releases page]
 
 | Version | What changed |
 |---|---|
+| [0.4.2](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.2) | Fixed an extra bit of word at the start of takes with some voices: clips now end at a real pause, and voice cards warn about clips cut mid-word. |
 | [0.4.1](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.1) | Two more voice models, free for commercial use: VoxCPM2 (30 languages, 48 kHz) and CosyVoice 3 (fast, incl. Cantonese). |
 | [0.4.0](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.0) | Four more voice models: Chatterbox (23 languages incl. Hindi, Arabic, Swahili), Kokoro (15 voices, fast without a graphics card), MOSS-TTS Nano (tiny) and OmniVoice (96 languages, non-commercial). 15 more script languages. |
 | [0.3.4](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.3.4) | Linux: S2 Pro downloads on the Models page work. Mac: S2 Pro on Metal. |
