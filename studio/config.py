@@ -174,8 +174,9 @@ ACPP_RUNTIME = {
              ("https://developer.download.nvidia.com/compute/cuda/redist/libcufft/windows-x86_64/"
               "libcufft-windows-x86_64-12.3.0.29-archive.zip", 182627436,
               "83df908ae67e2b3a86201de8463562ab49dd9ee8b3b5efc3fdc2e681b14b5dd9")],
-    "vulkan": [(_AC + "vulkan.zip", 62705751, "271402eae94195b9e2204e9f07e576bd0df879c75bafb0fa2f940830648d63f9")],
-    "cpu": [(_AC + "cpu.zip", 28258383, "66df445ba41f02ed2694e8d6933525163a3cc10adccf5cc40d5ad927c7774529")],
+    # the "portable" builds: the plain ones use AVX-512 and crash ("illegal instruction") on most PCs' processors
+    "vulkan": [(_AC + "vulkan-portable.zip", 62556276, "4d11a82c560f7a1dc0934e6fef847d6e0b779cf79854aa7d90d8b28e4ad04d93")],
+    "cpu": [(_AC + "cpu-portable.zip", 28114705, "4bea04239d753d2d0a294580ad4af2a0fa81b0de244a1b9146650c7f9fa4e84d")],
 }
 ACPP_BUILD = {"cuda": "cuda", "cuda12": "vulkan", "vulkan": "vulkan", "cpu": "cpu"}  # voice engine -> build
 
@@ -378,7 +379,7 @@ MODELS = {
         "vram_gb": 3.5, "x_rt": 2.7,
         "about": "Resemble AI's open model: clones a voice from a few seconds of audio in 23 languages, including Hindi, "
                  "Arabic, Swahili and Turkish. About 2.7× faster than real time on an RTX 5060 laptop GPU, in about "
-                 "3 GB. Needs a graphics card: on the processor it's about 4× slower than real time."},
+                 "3 GB. Needs a graphics card: on the processor it's about 10× slower than real time."},
     "kokoro": {
         "kind": "voice", "runtime": "acpp", "family": "kokoro_tts", "engines": list(ACPP_BUILD), "espeak": True,
         "label": "Kokoro", "short": "Kokoro · very fast, its own 15 voices", "api_id": "kokoro",

@@ -103,7 +103,7 @@ about 460 MB (audio.cpp plus NVIDIA's cuFFT library). All three are free for com
 
 - **Chatterbox** ([Resemble AI](https://huggingface.co/ResembleAI/chatterbox), MIT) copies a voice from its clip in
   23 languages, including Hindi, Arabic, Swahili, Turkish, Polish and Korean. About 2.7× faster than real time on an
-  NVIDIA card in about 3 GB (Korean needs up to 6 GB). It needs a graphics card: on the processor it's about 4×
+  NVIDIA card in about 3 GB (Korean needs up to 6 GB). It needs a graphics card: on the processor it's about 10×
   slower than real time.
 - **Kokoro** ([hexgrad](https://huggingface.co/hexgrad/Kokoro-82M), Apache 2.0) is tiny and very fast: over 10× faster
   than real time on a graphics card and about 2× on the processor alone. It **can't copy a voice**: it has its own

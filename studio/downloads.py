@@ -73,7 +73,15 @@ class Downloads:
         if not build:
             return None
         folder, exe = self._rt_place(rt, build)
-        return build if not (folder / exe).exists() else None
+        if not (folder / exe).exists():
+            return build
+        # audio.cpp's builds say which download they came from: a changed one (a new release, the portable builds)
+        # is fetched again
+        source = folder / "source.txt"
+        wanted = [u for u, _, _ in self._rt_zips(rt, build)]
+        if rt == "acpp" and (not source.exists() or source.read_text(encoding="utf-8").split() != wanted):
+            return build
+        return None
 
     def _extra(self, m: dict) -> int:
         """What a model's download also fetches: Whisper with the first Whisper model, s2.cpp with S2 Pro,
@@ -248,6 +256,7 @@ class Downloads:
         await asyncio.to_thread(self._unpack, paths, target, exe)
         if target.name.startswith("audiocpp-"):  # NVIDIA's cuFFT zip keeps its DLL in <folder>/bin
             await asyncio.to_thread(self._hoist_dlls, target)
+            (target / "source.txt").write_text(" ".join(url for url, _, _ in zips), encoding="utf-8")
 
     @staticmethod
     def _hoist_dlls(target: Path) -> None:
