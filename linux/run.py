@@ -16,7 +16,15 @@ compat.apply()
 
 if "--tray" in sys.argv[1:]:
     from studio import app as _app  # noqa: F401  (imports first: tray needs the patched autostart)
-    compat.patch_tray()
+    try:
+        compat.patch_tray()
+    except Exception as e:
+        # pystray fails at import time when the desktop has no usable tray (e.g. COSMIC without the AppIndicator
+        # typelib). Start without the icon instead of not at all: the menu entry would do nothing otherwise.
+        print(f"note: no tray icon ({type(e).__name__}: {e}); starting without it. Quit with "
+              f"'{Path(__file__).resolve().parent / 'fatima-voice-studio'} --stop'.", file=sys.stderr)
+        compat.notify_no_tray()
+        sys.argv = [a for a in sys.argv if a != "--tray"]
 
 if "--check" in sys.argv[1:]:
     # studio's own --check imports the tray module, and pystray fails at import time without a display (servers,

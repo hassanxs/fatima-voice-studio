@@ -32,7 +32,8 @@ TARGETS = {
     "config": {"HOME", "DATA", "CONFIG_FILE", "VOICES", "MUSIC", "DEFAULTS", "ENGINES", "ENGINE_EXE", "WHISPER_EXE",
                "engine_dir", "installed_engines", "whisper_dir", "tool_dir",
                # _patch_s2: S2 Pro and Whisper on the graphics card from setup.sh's downloads
-               "S2_EXE", "S2_RUNTIME", "s2_dir", "s2_engine", "WHISPER_GPU", "whisper_gpu_engine", "MODELS"},
+               "S2_EXE", "S2_RUNTIME", "s2_dir", "s2_engine", "WHISPER_GPU", "whisper_gpu_engine", "MODELS",
+               "OMNI_EXE", "OMNI_RUNTIME", "omni_dir", "omni_build"},
     "hardware": {"_vendor", "_registry_gpus", "_ram_gb", "_cpu", "on_battery", "recommended_engine"},
     "autostart": {"enabled", "set_enabled", "python_console", "install_launchers"},
     "updater": {"Updater"},
@@ -40,6 +41,7 @@ TARGETS = {
     "winui": {"pick_folder"},
     "engine": {"subprocess"},  # compat swaps engine.subprocess for a Popen that is killed with the app
     "s2engine": {"subprocess"},  # the same for the S2 Pro server
+    "omniengine": {"subprocess"},  # and the OmniVoice server
     "tray": {"copy", "Tray"},
     # app.py imports these by name (`from .updater import Updater`), so compat has to patch them *before* app is
     # imported. Renaming them or importing them differently would bypass the patch.

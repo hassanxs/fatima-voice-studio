@@ -151,6 +151,15 @@ def backend() -> str:
     return b if b in BACKEND_LABELS else "vulkan"
 
 
+OMNI_EXE = "tts-server"
+
+
+def omni_server() -> Path | None:
+    """omnivoice.cpp's tts-server for OmniVoice (setup.sh's download, linux/bin/omnivoice)."""
+    exe = LINUX_DIR / "bin" / "omnivoice" / OMNI_EXE
+    return exe if exe.exists() else None
+
+
 def whisper_gpu_cli() -> Path | None:
     """whisper-cli for the graphics card (setup.sh's download, linux/bin/whisper-gpu)."""
     exe = LINUX_DIR / "bin" / "whisper-gpu" / "whisper-cli"
@@ -173,6 +182,8 @@ def _link_tools() -> None:
             _link(str(s2 / name) if s2 and k == key else None, home / "engine" / f"s2-{k}" / name)
         gpu_cli = whisper_gpu_cli()
         _link(str(gpu_cli) if gpu_cli and k == key else None, home / "engine" / f"whisper-gpu-{k}" / "whisper-cli")
+        omni = omni_server()
+        _link(str(omni) if omni and k == key else None, home / "engine" / f"omnivoice-{k}" / OMNI_EXE)
     _link(find_tool("FVS_LLAMA_TTS", "llama-tts"), home / "engine" / SYSTEM_ENGINE / "llama-tts")
     _link(find_tool("FVS_WHISPER_CLI", "whisper-cli"), home / "engine" / "whisper" / "whisper-cli")
 
@@ -464,8 +475,15 @@ def _patch_s2() -> None:
     config.WHISPER_GPU[key] = ("linux/bin/whisper-gpu/whisper-cli", 0, "")
     config.whisper_gpu_engine = lambda cfg: (key if whisper_gpu_cli() and SYSTEM_ENGINE in config.installed_engines(cfg)
                                              else None)
+    # OmniVoice: omnivoice.cpp's tts-server for the same backend
+    config.OMNI_EXE = OMNI_EXE
+    config.OMNI_RUNTIME.clear()
+    config.OMNI_RUNTIME[key] = ("", 0, "")  # size 0: setup.sh installs it
+    config.omni_dir = lambda build: fvs_home() / "engine" / f"omnivoice-{build}"
+    config.omni_build = lambda cfg: (key if omni_server() and SYSTEM_ENGINE in config.installed_engines(cfg)
+                                     else None)
     for m in config.MODELS.values():
-        if m.get("runtime") == "s2":
+        if m.get("runtime") in ("s2", "omni"):  # S2 Pro and OmniVoice run with the "system" engine
             m["engines"] = [SYSTEM_ENGINE]
 
     D = downloads.Downloads
@@ -499,6 +517,8 @@ def _patch_engine() -> None:
     engine.subprocess = types.SimpleNamespace(**{**vars(subprocess), "Popen": Popen})
     from studio import s2engine
     s2engine.subprocess = engine.subprocess  # the S2 Pro server too
+    from studio import omniengine
+    omniengine.subprocess = engine.subprocess  # and OmniVoice's
 
 
 def _notify(message: str, title: str | None = None) -> None:
@@ -506,6 +526,12 @@ def _notify(message: str, title: str | None = None) -> None:
     if shutil.which("notify-send"):
         subprocess.run(["notify-send", "-a", "Fatima Voice Studio", title or "Fatima Voice Studio", message],
                        capture_output=True)
+
+
+def notify_no_tray() -> None:
+    """Started from the menu without a usable tray: say that it runs, and how to get the icon."""
+    _notify("Running without a tray icon; the page opens in your browser. Run linux/setup.sh again to add the "
+            "tray icon.")
 
 
 def patch_tray() -> None:

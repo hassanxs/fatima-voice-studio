@@ -1,13 +1,14 @@
 # Builds the Linux engines that linux/setup.sh downloads next to the official llama.cpp build: s2.cpp (Fish Audio
-# S2 Pro, the same commit, pull requests and seed.patch as s2cpp.yml) and whisper-cli (whisper.cpp), for one graphics
-# card backend each, and publishes them as one release (tag input below):
+# S2 Pro, the same commit, pull requests and seed.patch as s2cpp.yml), omnivoice.cpp's tts-server (OmniVoice, the same
+# commit and steps.patch as omnivoice.yml) and whisper-cli (whisper.cpp), for one graphics card backend each, and
+# publishes them as one release (tag input below):
 #
 #   cuda   -> NVIDIA, RTX 20 series and newer, driver 580+ (CUDA 13.4). cuBLAS/cudart are not packed: they come from
 #             llama.cpp's cudart archive, which setup.sh puts in linux/bin/llama.cpp (RPATH $ORIGIN/../llama.cpp)
 #   vulkan -> AMD, Intel, older NVIDIA; also runs on the CPU
 #
 # Built on Ubuntu 22.04 (glibc 2.35), so they run on Ubuntu 22.04 / Debian 12 / Fedora 36 and newer. Each archive
-# holds s2cpp/ and whisper-gpu/ and is unpacked into linux/bin. After publishing, put the archives' SHA-256 into
+# holds s2cpp/, omnivoice/ and whisper-gpu/ and is unpacked into linux/bin. After publishing, put the archives' SHA-256 into
 # ENGINES_SHA256 in linux/setup.sh. Run it by hand; app releases don't.
 name: Linux engines
 
@@ -22,6 +23,10 @@ on:
         description: "s2.cpp pull requests to merge, as number@commit (space separated)"
         required: false
         default: "50@49bb869e2399555ab23be1d6ec4b8aa67c0b6a3c 51@f468f9d70e269855f67c2c7e0080071263edb40b 52@68ebea3f66e143ad58e326d11aee2b1817c1ae9c"
+      omnivoice_ref:
+        description: "omnivoice.cpp commit"
+        required: true
+        default: "1a468d8b9d65b3544ca1004d2d7c05dfc65d1f3e"
       whisper_tag:
         description: "whisper.cpp tag"
         required: true
@@ -82,7 +87,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: fvs
-          sparse-checkout: packaging/s2cpp
+          sparse-checkout: |
+            packaging/s2cpp
+            packaging/omnivoice
 
       - name: s2.cpp
         run: |
@@ -100,6 +107,14 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF ${{ matrix.s2_define }} ${{ matrix.defines }}
           cmake --build build -j"$(nproc)" --target s2
 
+      - name: omnivoice.cpp
+        run: |
+          git clone -q https://github.com/ServeurpersoCom/omnivoice.cpp omnivoice && cd omnivoice
+          git checkout -q "${{ inputs.omnivoice_ref }}" && git submodule update -q --init --recursive
+          for p in ../fvs/packaging/omnivoice/*.patch; do git apply --verbose "$p"; done
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF ${{ matrix.defines }}
+          cmake --build build -j"$(nproc)" --target tts-server
+
       - name: whisper.cpp
         run: |
           git clone -q --depth 1 --branch "${{ inputs.whisper_tag }}" https://github.com/ggml-org/whisper.cpp whisper
@@ -108,10 +123,10 @@ jobs:
           cmake --build whisper/build -j"$(nproc)" --target whisper-cli
 
       # The licences ask redistributions to carry them (Fish Audio Research License for s2.cpp / S2 Pro, MIT for
-      # whisper.cpp)
+      # omnivoice.cpp and whisper.cpp)
       - name: Pack
         run: |
-          mkdir -p pack/s2cpp pack/whisper-gpu
+          mkdir -p pack/s2cpp pack/omnivoice pack/whisper-gpu
           cp s2/build/s2 s2/tokenizer.json s2/LICENSE.md pack/s2cpp/
           cat > pack/s2cpp/NOTICE.txt <<EOF
           This model is licensed under the Fish Audio Research License, Copyright © 39 AI, INC. All Rights Reserved.
@@ -121,11 +136,20 @@ jobs:
           "seed" server parameter for repeatable takes); (std::max) in src/main.cpp; <cuda/iterator> in ggml's top-k.cu.
           Backend: ${{ matrix.backend }}, Linux x86_64.
           EOF
+          cp "$(find omnivoice/build -type f -perm -u+x -name tts-server | head -n 1)" pack/omnivoice/
+          cp omnivoice/LICENSE pack/omnivoice/LICENSE.txt
+          cat > pack/omnivoice/NOTICE.txt <<EOF
+          omnivoice.cpp ${{ inputs.omnivoice_ref }} (https://github.com/ServeurpersoCom/omnivoice.cpp, MIT), changed for Fatima
+          Voice Studio: packaging/omnivoice/steps.patch (a "steps" field on /v1/audio/speech). Backend: ${{ matrix.backend }},
+          Linux x86_64. The OmniVoice model (k2-fsa) is CC-BY-NC 4.0 (non-commercial); its audio codec (Higgs Audio v2
+          tokenizer) is under Boson AI's licence. Both are downloaded separately, not in this archive.
+          EOF
           cp whisper/build/bin/whisper-cli pack/whisper-gpu/
           cp whisper/LICENSE pack/whisper-gpu/LICENSE.txt
           grep -q -- '--seed' pack/s2cpp/s2 || { echo "seed.patch isn't in s2"; exit 1; }
-          if objdump -p pack/s2cpp/s2 pack/whisper-gpu/whisper-cli 2>/dev/null | grep -q 'NEEDED.*nccl'; then echo "linked NCCL"; exit 1; fi
-          tar -czf "fvs-engines-${{ inputs.release || 'test' }}-linux-${{ matrix.backend }}-x64.tar.gz" -C pack s2cpp whisper-gpu
+          grep -q "'steps' must be" pack/omnivoice/tts-server || { echo "steps.patch isn't in tts-server"; exit 1; }
+          if objdump -p pack/s2cpp/s2 pack/omnivoice/tts-server pack/whisper-gpu/whisper-cli 2>/dev/null | grep -q 'NEEDED.*nccl'; then echo "linked NCCL"; exit 1; fi
+          tar -czf "fvs-engines-${{ inputs.release || 'test' }}-linux-${{ matrix.backend }}-x64.tar.gz" -C pack s2cpp omnivoice whisper-gpu
           ls -la *.tar.gz
 
       - uses: actions/upload-artifact@v4
@@ -151,7 +175,8 @@ jobs:
           cd dist
           sha256sum *.tar.gz > SHA256SUMS.txt
           {
-            echo "Linux engines for Fatima Voice Studio: s2.cpp (Fish Audio S2 Pro) and whisper-cli for the graphics card."
+            echo "Linux engines for Fatima Voice Studio: s2.cpp (Fish Audio S2 Pro), omnivoice.cpp (OmniVoice) and whisper-cli"
+            echo "for the graphics card."
             echo "linux/setup.sh downloads the one for your card by itself; there's nothing to install by hand."
             echo
             echo "| File | Cards |"
@@ -160,7 +185,8 @@ jobs:
             echo "| vulkan | AMD, Intel, older NVIDIA; also runs on the CPU |"
             echo
             echo "s2.cpp ${{ inputs.s2_ref }} with pull requests ${{ inputs.s2_prs }} and packaging/s2cpp/seed.patch;"
-            echo "whisper.cpp ${{ inputs.whisper_tag }}. Built on Ubuntu 22.04 (glibc 2.35)."
+            echo "omnivoice.cpp ${{ inputs.omnivoice_ref }} with packaging/omnivoice/steps.patch; whisper.cpp ${{ inputs.whisper_tag }}."
+            echo "Built on Ubuntu 22.04 (glibc 2.35)."
             echo "Fish Audio Research License (s2cpp/LICENSE.md, s2cpp/NOTICE.txt). Built with Fish Audio. whisper.cpp: MIT."
             echo
             echo '```'

@@ -134,6 +134,12 @@ pkgs() {
     zypper:tray)    echo "glib2-devel cairo-devel pkgconf gcc" ;;  # girepository-2.0 is in glib2-devel there
     pacman:tray)    echo "gobject-introspection cairo pkgconf gcc" ;;
     apt-get:curl|dnf:curl|zypper:curl|pacman:curl) echo "curl" ;;
+    # the tray icon's AppIndicator (StatusNotifier) typelib: not on every desktop (Pop!_OS COSMIC lacks it)
+    apt-get:indicator) echo "gir1.2-ayatanaappindicator3-0.1|gir1.2-appindicator3-0.1" ;;
+    dnf:indicator)     echo "libayatana-appindicator-gtk3|libappindicator-gtk3" ;;
+    zypper:indicator)  echo "typelib-1_0-AyatanaAppIndicator3-0_1|typelib-1_0-AppIndicator3-0_1" ;;
+    pacman:indicator)  echo "libayatana-appindicator" ;;
+    apt-get:dialog|dnf:dialog|zypper:dialog|pacman:dialog) echo "zenity" ;;  # the Browse button in Settings
     apt-get:gio) echo "libglib2.0-bin" ;;                   dnf:gio|pacman:gio) echo "glib2" ;;
     zypper:gio)  echo "glib2-tools" ;;
     apt-get:awk) echo "mawk|gawk" ;;                        dnf:awk|zypper:awk|pacman:awk) echo "gawk" ;;
@@ -155,6 +161,9 @@ available() {
 has_lib() {
   case "$("$(command -v ldconfig || echo /sbin/ldconfig)" -p 2>/dev/null)" in *"$1"*) return 0 ;; esac
   [ -e "/usr/lib/$1" ] || [ -e "/usr/lib64/$1" ]
+}
+has_typelib() {  # has_typelib NAME-VERSION: a GObject typelib the tray icon loads at run time
+  compgen -G "/usr/lib/*/girepository-1.0/$1.typelib" >/dev/null || compgen -G "/usr/lib*/girepository-1.0/$1.typelib" >/dev/null
 }
 has_icd() { compgen -G '/usr/share/vulkan/icd.d/*.json' >/dev/null || compgen -G '/etc/vulkan/icd.d/*.json' >/dev/null; }
 # "llama-tts --version" prints "version: 0.3.0-dev (build 10689, commit ...)" (newer builds) or
@@ -190,6 +199,14 @@ detect_backend() {
       gpu_note="NVIDIA card without the NVIDIA driver: install the driver (580 or newer) and run setup.sh again for CUDA"
     fi
   fi
+  # The CUDA engines are built with CUDA 13.4. Older cards in them (Turing / RTX 20, Quadro T) only get PTX, which the
+  # driver compiles when they start: a driver for an older CUDA (e.g. 595 = CUDA 13.2) can't ("the provided PTX
+  # was compiled with an unsupported toolchain"). nvidia-smi's header says which CUDA the driver supports.
+  local cuda_ver; cuda_ver="$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: *\([0-9][0-9.]*\).*/\1/p' | head -n 1)"
+  if [ "$backend" = cuda ] && [ -n "$cuda_ver" ] && [ "$(printf '%s\n13.4\n' "$cuda_ver" | sort -V | head -n 1)" != 13.4 ]; then
+    backend=vulkan
+    gpu_note="this NVIDIA driver supports CUDA $cuda_ver, the CUDA engines need 13.4: update the driver, then run setup.sh again"
+  fi
   # llama.cpp's official CUDA build for Linux is built on Ubuntu 24.04 and needs glibc 2.38 (the Vulkan one 2.34)
   local glibc; glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | sed 's/^glibc //')"
   if [ "$backend" = cuda ] && [ -n "$glibc" ] && [ "$(printf '%s\n2.38\n' "$glibc" | sort -V | head -n 1)" != 2.38 ]; then
@@ -205,12 +222,15 @@ installed_backend="$(cat bin/BACKEND 2>/dev/null || true)"
 need_llama=0; need_engines=0
 # FVS_LLAMA_TTS: the user's own llama-tts, nothing to download for it
 if [ -z "${FVS_LLAMA_TTS:-}" ] && { ! [ -x bin/llama-tts ] || [ "$installed_backend" != "$backend" ]; }; then need_llama=1; fi
-if [ "$(uname -m)" = x86_64 ] && { ! [ -x bin/s2cpp/s2 ] || [ "$installed_backend" != "$backend" ]; }; then need_engines=1; fi
+# bin/ENGINES: the engines release installed (a newer release brings new engines, e.g. OmniVoice in linux-engines-2)
+if [ "$(uname -m)" = x86_64 ] && { [ "$(cat bin/ENGINES 2>/dev/null)" != "$ENGINES_RELEASE" ] || ! [ -x bin/s2cpp/s2 ] \
+     || [ "$installed_backend" != "$backend" ]; }; then need_engines=1; fi
 
 needs=()
 command -v curl >/dev/null || needs+=(curl)
 command -v awk >/dev/null || needs+=(awk)  # uv's installer and this script use it
 command -v gio >/dev/null || command -v trash-put >/dev/null || needs+=(gio)  # deleting batches moves them to the trash
+command -v zenity >/dev/null || command -v kdialog >/dev/null || needs+=(dialog)  # e.g. COSMIC has neither
 { command -v tar >/dev/null && command -v gzip >/dev/null; } || needs+=(tar)
 command -v pkill >/dev/null || needs+=(procps)  # the launcher's --stop
 command -v ffmpeg >/dev/null || needs+=(ffmpeg)
@@ -225,6 +245,7 @@ fi
 have_whisper || [ "$need_engines" = 1 ] || { command -v git >/dev/null && command -v cmake >/dev/null && command -v make >/dev/null \
                   && command -v c++ >/dev/null; } || needs+=(build)
 { command -v pkg-config >/dev/null && pkg-config --exists girepository-2.0 cairo-gobject 2>/dev/null && command -v cc >/dev/null; }   || needs+=(tray)
+has_typelib AyatanaAppIndicator3-0.1 || has_typelib AppIndicator3-0.1 || needs+=(indicator)
 
 install=(); skipped=(); cmd=(); su=(); tray_impossible=0; [ "$(id -u)" = 0 ] || su=(sudo)
 if [ ${#needs[@]} -gt 0 ] && [ -n "$pm" ]; then
@@ -360,13 +381,14 @@ install_engines() {
   work="$(mktemp -d)"
   fetch "$REPO_URL/releases/download/$ENGINES_RELEASE/$tgz" "${ENGINES_SHA256[$backend]}" "$work/$tgz" \
     || { rm -rf "$work"; return 1; }
-  rm -rf bin/s2cpp bin/whisper-gpu && mkdir -p bin && tar -xzf "$work/$tgz" -C bin && rm -rf "$work"
+  rm -rf bin/s2cpp bin/omnivoice bin/whisper-gpu && mkdir -p bin && tar -xzf "$work/$tgz" -C bin && rm -rf "$work"
   # whisper-cli on the processor (the app's fallback): the same program with -ng, unless one was built here
   if [ ! -x bin/whisper-cli ] || grep -q 'whisper-gpu/whisper-cli' bin/whisper-cli 2>/dev/null; then
     printf '#!/bin/sh\n# whisper-cli without the graphics card: the app falls back to it when the card run fails\nexec "$(dirname "$(readlink -f "$0")")/whisper-gpu/whisper-cli" -ng "$@"\n' > bin/whisper-cli
     chmod +x bin/whisper-cli
   fi
   bin/s2cpp/s2 --help >/dev/null 2>&1 || { warn "the downloaded s2 doesn't run here"; rm -rf bin/s2cpp; return 1; }
+  echo "$ENGINES_RELEASE" > bin/ENGINES
 }
 
 # Finds llama-tts the way compat.py does (FVS_LLAMA_TTS, then linux/bin, then PATH) and checks that it is new enough.
@@ -404,6 +426,8 @@ fi
 # ---- 4. Check ----------------------------------------------------------------------------------------------------
 echo "Checking tools:"
 check_llama_tts
+if [ -x bin/omnivoice/tts-server ]; then ok "OmniVoice engine (omnivoice.cpp, $(cat bin/BACKEND 2>/dev/null || echo "$backend"))"
+else warn "OmniVoice engine (omnivoice.cpp): run ./setup.sh again (x86_64 only). Qwen3-TTS works without it."; fi
 if [ -x bin/s2cpp/s2 ]; then ok "S2 Pro engine (s2.cpp, $(cat bin/BACKEND 2>/dev/null || echo "$backend"))"
 else warn "S2 Pro engine (s2.cpp): run ./setup.sh again (x86_64 only). Qwen3-TTS works without it."; fi
 if have_whisper; then ok "whisper-cli: $([ -x bin/whisper-cli ] && echo "$here/bin/whisper-cli" || command -v whisper-cli || echo "$FVS_WHISPER_CLI")"

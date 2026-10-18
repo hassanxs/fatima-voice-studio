@@ -37,7 +37,9 @@ trap 'rm -rf "$work"' EXIT
 if [ -n "${FVS_TARBALL:-}" ]; then
   tar -xzf "$FVS_TARBALL" -C "$work" || die "couldn't unpack $FVS_TARBALL"
 else
-  curl -fL --progress-bar "https://codeload.github.com/$REPO/tar.gz/$ref" | tar -xz -C "$work" \
+  # a few MB, and GitHub sends no size for these archives (curl would only show a bouncing bar): quietly
+  echo "Downloading $ref ..."
+  curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$ref" | tar -xz -C "$work" \
     || die "download of $ref failed"
 fi
 new="$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
