@@ -11,6 +11,7 @@ Honest overview of what has and hasn't been verified. "Re-run pending" means it 
 
 | Area | Status |
 |---|---|
+| Pop!_OS 24.04 (COSMIC, Wayland), Quadro T2000 4 GB + Intel UHD 630, NVIDIA driver 595: one-line install, menu entry, every voice model through the API | **Tested** 2026-10-18. Found and fixed: the menu entry did nothing (no AppIndicator typelib, the app died; now it starts without the icon, and setup.sh installs the typelib); CUDA chosen with a driver for CUDA 13.2 (now Vulkan with the reason). On Vulkan (device 1, not the Intel chip): Qwen3-TTS Q4 about real time, OmniVoice 0.35-0.45x, MOSS Nano 5.2x, CosyVoice 3 1.0x, Chatterbox 0.6x, Kokoro in en/es/hi, VoxCPM2 and S2 Pro on the CPU; Whisper turbo on the card. All transcripts correct |
 | `setup.sh --yes` from scratch as a normal user with sudo: system packages, uv, Python, llama.cpp download, whisper-cli build, menu entry; then the smoke test, starting the app (`/v1/health`), a second run, `--uninstall` | **Tested** 2026-10-13 in clean containers: Debian 12 and 13, Ubuntu 22.04, Fedora 44, openSUSE Tumbleweed, Arch. No tray icon on Debian 12 / Ubuntu 22.04 (gobject-introspection 1.x only); no GPU in the containers |
 | `setup.sh --yes` with the CUDA/Vulkan engine downloads (local test archives), then a Qwen3-TTS sentence and a Whisper transcription on the processor through the API | **Tested** 2026-10-13 in clean containers: Debian 12 and 13, Ubuntu 22.04, Fedora 44, openSUSE Tumbleweed, Arch: the downloaded llama.cpp, s2.cpp and whisper-cli run on all of them, speech and transcripts correct. Tray icon: Arch, Debian 13 and Fedora yes; Debian 12 and Ubuntu 22.04 no (gobject-introspection 1.x only); openSUSE Tumbleweed no (pycairo does not build there yet) |
 | CUDA on a real NVIDIA card: Ubuntu 24.04 container on an RTX 5060 (8 GB) | **Tested** 2026-10-13: setup picked CUDA; S2 Pro Q8 in real time (12.0 s of speech in 12.5 s), Whisper 12 s of audio in 2.6 s, S2 Pro unloaded for Whisper. On Ubuntu 22.04 the same card got Vulkan (glibc 2.35) |
@@ -56,7 +57,8 @@ lists what it is going to do and asks once ("Go ahead?"); `sudo` asks for the pa
 
 1. **Graphics card**: it looks at the cards (`nvidia-smi`, `lspci`) and picks the engines for them, shown in the
    plan as e.g. `Graphics card: NVIDIA GeForce RTX 5060 (8 GB, driver 616) -> NVIDIA CUDA`:
-   - **CUDA** for NVIDIA RTX 20 series and newer with driver 580+, on systems with glibc 2.38+ (Ubuntu 24.04, Mint
+   - **CUDA** for NVIDIA RTX 20 series and newer whose driver supports CUDA 13.4 (the CUDA engines only carry
+     PTX for RTX 20 / Quadro T cards, which an older driver can't compile), on systems with glibc 2.38+ (Ubuntu 24.04, Mint
      22, Debian 13, Fedora 39, Arch or newer; llama.cpp's CUDA build needs it). About 790 MB of downloads.
    - **Vulkan** for everything else: AMD, Intel, older NVIDIA cards, an older driver or an older system (the plan
      says why). About 70 MB. Without any card the Vulkan engines run on the processor.
@@ -68,10 +70,13 @@ lists what it is going to do and asks once ("Go ahead?"); `sudo` asks for the pa
 4. **The engines**, all SHA-256 checked, into `linux/bin` (`bin/BACKEND` says which kind):
    - llama.cpp for Qwen3-TTS: the official build of the release the Windows version pins (CUDA with NVIDIA's cuBLAS
      and cudart, or Vulkan), in `bin/llama.cpp`;
-   - s2.cpp for Fish Audio S2 Pro (`bin/s2cpp`) and whisper-cli for the graphics card (`bin/whisper-gpu`), built by
-     `.github/workflows/linux-engines.yml` for the same backend. On the processor the app runs the same whisper-cli
-     with `-ng` (`bin/whisper-cli`). Only on ARM or when that download fails is whisper-cli built here instead
+   - s2.cpp for Fish Audio S2 Pro (`bin/s2cpp`), omnivoice.cpp's `tts-server` for OmniVoice (`bin/omnivoice`) and
+     whisper-cli for the graphics card (`bin/whisper-gpu`), built by `.github/workflows/linux-engines.yml` for the
+     same backend (`bin/ENGINES` says which release). On the processor the app runs the same whisper-cli with `-ng`
+     (`bin/whisper-cli`). Only on ARM or when that download fails is whisper-cli built here instead
      (`./build-whisper.sh`, CPU).
+   - audio.cpp for Chatterbox, Kokoro, VoxCPM2, CosyVoice 3 and MOSS (`bin/audiocpp`): audio.cpp's own official Linux
+     Vulkan build, on every card (glibc 2.38+), with the distribution's `espeak-ng` for Kokoro's pronunciation.
 5. **Menu entry**: Fatima Voice Studio in the applications menu, with the app's icon.
 
 `./setup.sh --uninstall` removes the menu entry, the service, the Python environment and the engines. It asks before
@@ -110,10 +115,11 @@ The upstream app would fetch Windows builds of these (`ffmpeg.exe`, `whisper-bin
 | `./fatima-voice-studio --stop` | stops a running instance, however it was started |
 | `./fatima-voice-studio --no-browser` | don't open the browser (can be combined) |
 
-The tray icon uses AppIndicator (KDE; GNOME with an extension). That needs `pygobject` in the venv, which `setup.sh`
-installs (it builds from source and needs the development files of `gobject-introspection` 2.x and `cairo`, which
-`setup.sh` installs; Ubuntu 22.04 and older have only 1.x, so no tray icon there). Without `pygobject` the app
-starts without a tray icon and says so; quit it with Ctrl+C or `--stop`.
+The tray icon uses AppIndicator (KDE, COSMIC; GNOME with an extension). That needs `pygobject` in the venv, which
+`setup.sh` installs (it builds from source and needs the development files of `gobject-introspection` 2.x and
+`cairo`; Ubuntu 22.04 and older have only 1.x, so no tray icon there), and the AppIndicator typelib, which
+`setup.sh` installs too (Pop!_OS's COSMIC doesn't come with it). Without them the app starts without a tray icon
+and says so (a desktop notification when started from the menu); quit it with Ctrl+C or `--stop`.
 
 ## Requirements
 
@@ -125,6 +131,8 @@ starts without a tray icon and says so; quit it with Ctrl+C or `--stop`.
 | `gobject-introspection`, `cairo`, `pkg-config` (development files) | builds `pygobject` for the tray icon (optional) | package manager |
 | `llama-tts` | speech output (Qwen3-TTS) | llama.cpp in `linux/bin/llama.cpp` from `setup.sh` (CUDA: glibc 2.38+, NVIDIA driver 580+; Vulkan: glibc 2.34+, the Vulkan loader and a Vulkan driver), or your own with `FVS_LLAMA_TTS` |
 | `s2` (s2.cpp) | Fish Audio S2 Pro | `linux/bin/s2cpp` from `setup.sh` (x86_64), or `FVS_S2` (a folder with `s2` and `tokenizer.json`) |
+| `tts-server` (omnivoice.cpp) | OmniVoice | `linux/bin/omnivoice` from `setup.sh` (x86_64) |
+| `audiocpp_server` (audio.cpp) | Chatterbox, Kokoro, VoxCPM2, CosyVoice 3, MOSS | `linux/bin/audiocpp` from `setup.sh` (x86_64, glibc 2.38+); `espeak-ng` for Kokoro |
 | `whisper-cli` | subtitles, transcripts | `linux/bin/whisper-gpu` from `setup.sh` (x86_64); elsewhere `./build-whisper.sh` (git, cmake, a C++ compiler) |
 | `ffmpeg` | reading video files and M4A/AAC | package manager (Fedora: `ffmpeg-free`) |
 | `setpriv` (util-linux) | the engine ends with the app | `util-linux` |
