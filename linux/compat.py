@@ -152,6 +152,32 @@ def backend() -> str:
 
 
 OMNI_EXE = "tts-server"
+ACPP_EXE = "audiocpp_server"
+# The audio.cpp archive setup.sh installs (keep in step with ACPP_TGZ there). setup.sh writes it into source.txt, which
+# studio/ compares to tell an outdated build.
+ACPP_URL = ("https://github.com/0xShug0/audio.cpp/releases/download/v0.9.2/"
+            "audio-v0.9.2-bin-ubuntu-x64-vulkan-portable.tar.gz")
+ESPEAK_HINT = ("Kokoro needs eSpeak NG for its pronunciation. Run linux/setup.sh again: it installs the espeak-ng "
+               "package. Then press Check again.")
+
+
+def acpp_folder() -> Path | None:
+    """audio.cpp's official Linux Vulkan build (setup.sh's download, linux/bin/audiocpp). Its libraries sit next to
+    the server, so the app runs it from there instead of through a link."""
+    folder = LINUX_DIR / "bin" / "audiocpp"
+    return folder if (folder / ACPP_EXE).exists() else None
+
+
+def espeak_system() -> tuple[str, str] | None:
+    """The distribution's eSpeak NG: (library, data folder), for Kokoro."""
+    for lib in ("/usr/lib/x86_64-linux-gnu/libespeak-ng.so.1", "/usr/lib64/libespeak-ng.so.1",
+                "/usr/lib/libespeak-ng.so.1", "/usr/lib/aarch64-linux-gnu/libespeak-ng.so.1"):
+        if Path(lib).exists():
+            for data in (Path(lib).parent / "espeak-ng-data", Path("/usr/share/espeak-ng-data"),
+                         Path("/usr/lib/x86_64-linux-gnu/espeak-ng-data")):
+                if data.is_dir():
+                    return lib, str(data)
+    return None
 
 
 def omni_server() -> Path | None:
@@ -184,6 +210,10 @@ def _link_tools() -> None:
         _link(str(gpu_cli) if gpu_cli and k == key else None, home / "engine" / f"whisper-gpu-{k}" / "whisper-cli")
         omni = omni_server()
         _link(str(omni) if omni and k == key else None, home / "engine" / f"omnivoice-{k}" / OMNI_EXE)
+    # Kokoro's eSpeak NG: studio/ looks for the Windows file names in espeak_dir(); link them to the system's copy
+    es = espeak_system()
+    _link(es[0] if es else None, home / "engine" / "espeak" / "libespeak-ng.dll")
+    _link(es[1] if es else None, home / "engine" / "espeak" / "espeak-ng-data")
     _link(find_tool("FVS_LLAMA_TTS", "llama-tts"), home / "engine" / SYSTEM_ENGINE / "llama-tts")
     _link(find_tool("FVS_WHISPER_CLI", "whisper-cli"), home / "engine" / "whisper" / "whisper-cli")
 
@@ -482,8 +512,24 @@ def _patch_s2() -> None:
     config.omni_dir = lambda build: fvs_home() / "engine" / f"omnivoice-{build}"
     config.omni_build = lambda cfg: (key if omni_server() and SYSTEM_ENGINE in config.installed_engines(cfg)
                                      else None)
+    # audio.cpp's models (Chatterbox, Kokoro, VoxCPM2, CosyVoice 3, MOSS): its official Vulkan build on every card
+    # (its Linux CUDA build is a Colab one with its own 750 MB of CUDA libraries)
+    config.ACPP_EXE = ACPP_EXE
+    config.ACPP_RUNTIME.clear()
+    config.ACPP_RUNTIME["vulkan"] = [(ACPP_URL, 0, "")]  # size 0: setup.sh installs it
+    config.acpp_dir = lambda build: LINUX_DIR / "bin" / "audiocpp"
+    config.acpp_build = lambda cfg: ("vulkan" if acpp_folder() and SYSTEM_ENGINE in config.installed_engines(cfg)
+                                     else None)
+    config.espeak_dir = lambda: fvs_home() / "engine" / "espeak"
+    D_ = downloads.Downloads
+    D_._espeak_missing = staticmethod(lambda m: bool(m.get("espeak")) and not espeak_system())
+
+    async def install_espeak(self, client, job):  # the Windows installer: never on Linux
+        raise RuntimeError(ESPEAK_HINT)
+
+    D_._install_espeak = install_espeak
     for m in config.MODELS.values():
-        if m.get("runtime") in ("s2", "omni"):  # S2 Pro and OmniVoice run with the "system" engine
+        if m.get("runtime") in ("s2", "omni", "acpp"):  # these run with the "system" engine
             m["engines"] = [SYSTEM_ENGINE]
 
     D = downloads.Downloads
@@ -517,8 +563,9 @@ def _patch_engine() -> None:
     engine.subprocess = types.SimpleNamespace(**{**vars(subprocess), "Popen": Popen})
     from studio import s2engine
     s2engine.subprocess = engine.subprocess  # the S2 Pro server too
-    from studio import omniengine
+    from studio import acppengine, omniengine
     omniengine.subprocess = engine.subprocess  # and OmniVoice's
+    acppengine.subprocess = engine.subprocess  # and audio.cpp's
 
 
 def _notify(message: str, title: str | None = None) -> None:

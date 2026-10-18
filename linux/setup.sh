@@ -44,7 +44,12 @@ declare -A ENGINES_SHA256=(
   [vulkan]=a88c77e95199a9355a4b2b1cd2070db0d36324382e34a904e3cc9908b7a98064
 )
 # download sizes for the plan (MB)
-declare -A DOWNLOAD_MB=([llama-cuda]=590 [llama-vulkan]=30 [engines-cuda]=195 [engines-vulkan]=40)
+# audio.cpp for Chatterbox, Kokoro, VoxCPM2, CosyVoice 3 and MOSS: its own official Linux build, Vulkan on every card
+# (its CUDA one is a Colab build with 750 MB of CUDA libraries). Built on Ubuntu 24.04: needs glibc 2.38. The URL is
+# also in compat.py (ACPP_URL), which compares it with bin/audiocpp/source.txt.
+ACPP_TGZ=https://github.com/0xShug0/audio.cpp/releases/download/v0.9.2/audio-v0.9.2-bin-ubuntu-x64-vulkan-portable.tar.gz
+ACPP_SHA256=37294a0d9d52383475a47df95dc725c83faee0dbfae00088f1509ed4d7f3619d
+declare -A DOWNLOAD_MB=([llama-cuda]=590 [llama-vulkan]=30 [engines-cuda]=195 [engines-vulkan]=40 [acpp]=74)
 
 ok()   { printf '  \033[32mok\033[0m    %s\n' "$*"; }
 warn() { printf '  \033[33mmissing\033[0m %s\n' "$*"; }
@@ -140,6 +145,7 @@ pkgs() {
     zypper:indicator)  echo "typelib-1_0-AyatanaAppIndicator3-0_1|typelib-1_0-AppIndicator3-0_1" ;;
     pacman:indicator)  echo "libayatana-appindicator" ;;
     apt-get:dialog|dnf:dialog|zypper:dialog|pacman:dialog) echo "zenity" ;;  # the Browse button in Settings
+    apt-get:espeak|dnf:espeak|zypper:espeak|pacman:espeak) echo "espeak-ng" ;;  # Kokoro's pronunciation
     apt-get:gio) echo "libglib2.0-bin" ;;                   dnf:gio|pacman:gio) echo "glib2" ;;
     zypper:gio)  echo "glib2-tools" ;;
     apt-get:awk) echo "mawk|gawk" ;;                        dnf:awk|zypper:awk|pacman:awk) echo "gawk" ;;
@@ -219,7 +225,15 @@ detect_backend() {
 }
 detect_backend
 installed_backend="$(cat bin/BACKEND 2>/dev/null || true)"
-need_llama=0; need_engines=0
+need_llama=0; need_engines=0; need_acpp=0; acpp_note=""
+if [ "$(uname -m)" = x86_64 ]; then
+  glibc_now="$(getconf GNU_LIBC_VERSION 2>/dev/null | sed 's/^glibc //')"
+  if [ -n "$glibc_now" ] && [ "$(printf '%s\n2.38\n' "$glibc_now" | sort -V | head -n 1)" != 2.38 ]; then
+    acpp_note="Chatterbox, Kokoro, VoxCPM2, CosyVoice 3 and MOSS need a newer system (glibc 2.38; this one has $glibc_now)"
+  elif ! [ -x bin/audiocpp/audiocpp_server ] || [ "$(cat bin/audiocpp/source.txt 2>/dev/null)" != "$ACPP_TGZ" ]; then
+    need_acpp=1
+  fi
+fi
 # FVS_LLAMA_TTS: the user's own llama-tts, nothing to download for it
 if [ -z "${FVS_LLAMA_TTS:-}" ] && { ! [ -x bin/llama-tts ] || [ "$installed_backend" != "$backend" ]; }; then need_llama=1; fi
 # bin/ENGINES: the engines release installed (a newer release brings new engines, e.g. OmniVoice in linux-engines-2)
@@ -231,6 +245,7 @@ command -v curl >/dev/null || needs+=(curl)
 command -v awk >/dev/null || needs+=(awk)  # uv's installer and this script use it
 command -v gio >/dev/null || command -v trash-put >/dev/null || needs+=(gio)  # deleting batches moves them to the trash
 command -v zenity >/dev/null || command -v kdialog >/dev/null || needs+=(dialog)  # e.g. COSMIC has neither
+{ [ "$need_acpp" = 1 ] || [ -x bin/audiocpp/audiocpp_server ]; } && ! has_lib libespeak-ng.so.1 && needs+=(espeak)
 { command -v tar >/dev/null && command -v gzip >/dev/null; } || needs+=(tar)
 command -v pkill >/dev/null || needs+=(procps)  # the launcher's --stop
 command -v ffmpeg >/dev/null || needs+=(ffmpeg)
@@ -277,7 +292,8 @@ plan=()
 [ -x .venv/bin/python ] || plan+=("set up Python 3.13 and the app's libraries in $here/.venv (about 150 MB)")
 label="$([ "$backend" = cuda ] && echo "NVIDIA CUDA" || echo "Vulkan")"
 [ "$need_llama" = 1 ] && plan+=("download the speech engine, llama.cpp $LLAMA_RELEASE for $label (about ${DOWNLOAD_MB[llama-$backend]} MB)")
-[ "$need_engines" = 1 ] && plan+=("download the S2 Pro engine and Whisper for $label (about ${DOWNLOAD_MB[engines-$backend]} MB)")
+[ "$need_engines" = 1 ] && plan+=("download the S2 Pro and OmniVoice engines and Whisper for $label (about ${DOWNLOAD_MB[engines-$backend]} MB)")
+[ "$need_acpp" = 1 ] && plan+=("download audio.cpp for Chatterbox, Kokoro, VoxCPM2, CosyVoice 3 and MOSS (Vulkan, about ${DOWNLOAD_MB[acpp]} MB)")
 [ -n "$installed_backend" ] && [ "$installed_backend" != "$backend" ] && plan+=("switch the engines from $installed_backend to $backend")
 have_whisper || [ "$need_engines" = 1 ] || plan+=("build whisper-cli for subtitles (a few minutes)")
 [ "$desktop" = 1 ] || [ -f "$DESKTOP_FILE" ] || plan+=("add Fatima Voice Studio to the applications menu")
@@ -414,8 +430,19 @@ check_llama_tts() {
 if [ "$need_llama" = 1 ]; then
   install_llama && ok "llama.cpp $LLAMA_RELEASE ($backend) installed in $here/bin/llama.cpp"
 fi
+install_acpp() {
+  local work; work="$(mktemp -d)"
+  fetch "$ACPP_TGZ" "$ACPP_SHA256" "$work/acpp.tgz" || { rm -rf "$work"; return 1; }
+  rm -rf bin/audiocpp && mkdir -p bin/audiocpp && tar -xzf "$work/acpp.tgz" -C bin/audiocpp && rm -rf "$work"
+  bin/audiocpp/audiocpp_server --list-devices >/dev/null 2>&1 \
+    || { warn "the downloaded audio.cpp doesn't run here"; rm -rf bin/audiocpp; return 1; }
+  printf '%s' "$ACPP_TGZ" > bin/audiocpp/source.txt
+}
+if [ "$need_acpp" = 1 ]; then
+  install_acpp && ok "audio.cpp (Vulkan) installed in $here/bin/audiocpp"
+fi
 if [ "$need_engines" = 1 ]; then
-  install_engines && ok "S2 Pro engine and Whisper for the graphics card ($backend) installed in $here/bin"
+  install_engines && ok "S2 Pro and OmniVoice engines and Whisper for the graphics card ($backend) installed in $here/bin"
 fi
 [ -x bin/llama-tts ] && { [ -x bin/s2cpp/s2 ] || [ "$need_engines" = 0 ]; } && echo "$backend" > bin/BACKEND
 if ! have_whisper && command -v cmake >/dev/null && command -v c++ >/dev/null && command -v git >/dev/null; then
@@ -426,6 +453,8 @@ fi
 # ---- 4. Check ----------------------------------------------------------------------------------------------------
 echo "Checking tools:"
 check_llama_tts
+if [ -x bin/audiocpp/audiocpp_server ]; then ok "audio.cpp (Chatterbox, Kokoro, VoxCPM2, CosyVoice 3, MOSS)"
+else warn "audio.cpp (Chatterbox, Kokoro, VoxCPM2, CosyVoice 3, MOSS): ${acpp_note:-run ./setup.sh again (x86_64 only)}. The other voice models work without it."; fi
 if [ -x bin/omnivoice/tts-server ]; then ok "OmniVoice engine (omnivoice.cpp, $(cat bin/BACKEND 2>/dev/null || echo "$backend"))"
 else warn "OmniVoice engine (omnivoice.cpp): run ./setup.sh again (x86_64 only). Qwen3-TTS works without it."; fi
 if [ -x bin/s2cpp/s2 ]; then ok "S2 Pro engine (s2.cpp, $(cat bin/BACKEND 2>/dev/null || echo "$backend"))"
