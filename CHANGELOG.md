@@ -2,6 +2,11 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
+## 0.4.4
+- Fish Audio S2 Pro on graphics cards with 4 to 6 GB: it now uses the card for most of the work instead of running only on the processor, about 1.5 times faster there.
+- Linux (GNOME, e.g. Fedora): setup turns on what GNOME needs to show the tray icon; log out and back in once.
+- Linux: newer NVIDIA drivers are recognised properly, and CUDA on RTX 20 / Quadro T cards no longer prepares itself again on every start.
+
 ## 0.4.3
 - Linux: every voice model now works, not just Qwen3-TTS and S2 Pro: OmniVoice, Chatterbox, Kokoro, VoxCPM2, CosyVoice 3 and MOSS too, on your graphics card. Run the install line again to get them.
 - Linux: the Applications menu entry starts the app even on desktops without a tray (it did nothing on Pop!_OS), and setup adds what the tray icon needs.
