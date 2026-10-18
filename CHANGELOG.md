@@ -2,6 +2,12 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
+## 0.4.3
+- Linux: every voice model now works, not just Qwen3-TTS and S2 Pro: OmniVoice, Chatterbox, Kokoro, VoxCPM2, CosyVoice 3 and MOSS too, on your graphics card. Run the install line again to get them.
+- Linux: the Applications menu entry starts the app even on desktops without a tray (it did nothing on Pop!_OS), and setup adds what the tray icon needs.
+- Linux: NVIDIA cards whose driver is too old for the CUDA engines use Vulkan, and setup says which driver to update (CUDA failed to start on them).
+- Linux: the page opens in your default browser.
+
 ## 0.4.2
 - Fixed: with some voices, takes started with an extra bit of word (like "…cado" before the first sentence), mostly with OmniVoice. The clip picked from a long recording could end in the middle of a word; it now ends at a real pause.
 - Voice cards warn when a clip ends in the middle of a word (also for voices you already have), with how to fix it in Edit.

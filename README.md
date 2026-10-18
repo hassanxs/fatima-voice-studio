@@ -103,8 +103,8 @@ curl -fsSL https://raw.githubusercontent.com/hassanxs/fatima-voice-studio/main/l
 ```
 
 It shows what it will set up and asks once: the missing system packages (one `sudo`), Python, and the engines for
-your graphics card: **CUDA** on NVIDIA RTX 20 series and newer, **Vulkan** on AMD, Intel and older cards. Qwen3-TTS,
-Fish Audio S2 Pro and Whisper all run on the card, as on Windows. Then start it from the applications menu. Run the
+your graphics card: **CUDA** on NVIDIA RTX 20 series and newer, **Vulkan** on AMD, Intel and older cards. Every
+voice model and Whisper run on the card, as on Windows. Then start it from the applications menu. Run the
 same line again to update; `~/.local/opt/fatima-voice-studio/linux/setup.sh --uninstall` removes it.
 
 **Mac:**
@@ -198,6 +198,7 @@ About page when an update is ready. Older installers stay on the [releases page]
 
 | Version | What changed |
 |---|---|
+| [0.4.3](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.3) | Linux: every voice model works (OmniVoice and the audio.cpp models too); the menu entry starts the app on desktops without a tray; older NVIDIA drivers fall back to Vulkan. |
 | [0.4.2](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.2) | Fixed an extra bit of word at the start of takes with some voices: clips now end at a real pause, and voice cards warn about clips cut mid-word. |
 | [0.4.1](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.1) | Two more voice models, free for commercial use: VoxCPM2 (30 languages, 48 kHz) and CosyVoice 3 (fast, incl. Cantonese). |
 | [0.4.0](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.0) | Four more voice models: Chatterbox (23 languages incl. Hindi, Arabic, Swahili), Kokoro (15 voices, fast without a graphics card), MOSS-TTS Nano (tiny) and OmniVoice (96 languages, non-commercial). 15 more script languages. |
