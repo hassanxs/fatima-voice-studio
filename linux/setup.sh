@@ -145,6 +145,8 @@ pkgs() {
     zypper:indicator)  echo "typelib-1_0-AyatanaAppIndicator3-0_1|typelib-1_0-AppIndicator3-0_1" ;;
     pacman:indicator)  echo "libayatana-appindicator" ;;
     apt-get:dialog|dnf:dialog|zypper:dialog|pacman:dialog) echo "zenity" ;;  # the Browse button in Settings
+    # GNOME shows tray icons only with this extension (Ubuntu turns it on; Fedora, Debian, Arch don't ship it on)
+    apt-get:gnometray|dnf:gnometray|zypper:gnometray|pacman:gnometray) echo "gnome-shell-extension-appindicator" ;;
     apt-get:espeak|dnf:espeak|zypper:espeak|pacman:espeak) echo "espeak-ng" ;;  # Kokoro's pronunciation
     apt-get:gio) echo "libglib2.0-bin" ;;                   dnf:gio|pacman:gio) echo "glib2" ;;
     zypper:gio)  echo "glib2-tools" ;;
@@ -170,6 +172,23 @@ has_lib() {
 }
 has_typelib() {  # has_typelib NAME-VERSION: a GObject typelib the tray icon loads at run time
   compgen -G "/usr/lib/*/girepository-1.0/$1.typelib" >/dev/null || compgen -G "/usr/lib*/girepository-1.0/$1.typelib" >/dev/null
+}
+# GNOME: the tray icon needs the AppIndicator extension installed and turned on for the user
+TRAY_EXT=appindicatorsupport@rgcjonas.gmail.com
+on_gnome() { case "${XDG_CURRENT_DESKTOP:-}" in *GNOME*) return 0 ;; esac; pgrep -u "$(id -u)" -x gnome-shell >/dev/null 2>&1; }
+tray_ext_installed() { [ -d "/usr/share/gnome-shell/extensions/$TRAY_EXT" ] || [ -d "$HOME/.local/share/gnome-shell/extensions/$TRAY_EXT" ]; }
+gsettings_user() {  # gsettings on the user's desktop session, also when setup.sh runs over SSH
+  local bus="${DBUS_SESSION_BUS_ADDRESS:-}"
+  [ -z "$bus" ] && [ -S "/run/user/$(id -u)/bus" ] && bus="unix:path=/run/user/$(id -u)/bus"
+  DBUS_SESSION_BUS_ADDRESS="$bus" gsettings "$@" 2>/dev/null
+}
+tray_ext_enabled() { gsettings_user get org.gnome.shell enabled-extensions | grep -q "$TRAY_EXT"; }
+enable_tray_ext() {
+  local now; now="$(gsettings_user get org.gnome.shell enabled-extensions)"
+  case "$now" in *"$TRAY_EXT"*) ;; "@as []"|"[]"|"") gsettings_user set org.gnome.shell enabled-extensions "['$TRAY_EXT']" ;;
+    *) gsettings_user set org.gnome.shell enabled-extensions "${now%]}, '$TRAY_EXT']" ;; esac
+  gsettings_user set org.gnome.shell disable-user-extensions false
+  tray_ext_enabled
 }
 has_icd() { compgen -G '/usr/share/vulkan/icd.d/*.json' >/dev/null || compgen -G '/etc/vulkan/icd.d/*.json' >/dev/null; }
 # "llama-tts --version" prints "version: 0.3.0-dev (build 10689, commit ...)" (newer builds) or
@@ -208,7 +227,8 @@ detect_backend() {
   # The CUDA engines are built with CUDA 13.4. Older cards in them (Turing / RTX 20, Quadro T) only get PTX, which the
   # driver compiles when they start: a driver for an older CUDA (e.g. 595 = CUDA 13.2) can't ("the provided PTX
   # was compiled with an unsupported toolchain"). nvidia-smi's header says which CUDA the driver supports.
-  local cuda_ver; cuda_ver="$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: *\([0-9][0-9.]*\).*/\1/p' | head -n 1)"
+  # ("CUDA Version: 13.2" in older drivers, "CUDA UMD Version: 13.4" from 615 on)
+  local cuda_ver; cuda_ver="$(nvidia-smi 2>/dev/null | sed -n -E 's/.*CUDA (UMD )?Version: *([0-9][0-9.]*).*/\2/p' | head -n 1)"
   if [ "$backend" = cuda ] && [ -n "$cuda_ver" ] && [ "$(printf '%s\n13.4\n' "$cuda_ver" | sort -V | head -n 1)" != 13.4 ]; then
     backend=vulkan
     gpu_note="this NVIDIA driver supports CUDA $cuda_ver, the CUDA engines need 13.4: update the driver, then run setup.sh again"
@@ -261,6 +281,14 @@ have_whisper || [ "$need_engines" = 1 ] || { command -v git >/dev/null && comman
                   && command -v c++ >/dev/null; } || needs+=(build)
 { command -v pkg-config >/dev/null && pkg-config --exists girepository-2.0 cairo-gobject 2>/dev/null && command -v cc >/dev/null; }   || needs+=(tray)
 has_typelib AyatanaAppIndicator3-0.1 || has_typelib AppIndicator3-0.1 || needs+=(indicator)
+need_tray_ext=0
+# (Ubuntu ships its own copy, ubuntu-appindicators@ubuntu.com, already on: nothing to do there)
+if on_gnome && command -v gsettings >/dev/null \
+   && ! gsettings_user get org.gnome.shell enabled-extensions | grep -q "ubuntu-appindicators@ubuntu.com" \
+   && ! { tray_ext_installed && tray_ext_enabled; }; then
+  tray_ext_installed || needs+=(gnometray)
+  need_tray_ext=1
+fi
 
 install=(); skipped=(); cmd=(); su=(); tray_impossible=0; [ "$(id -u)" = 0 ] || su=(sudo)
 if [ ${#needs[@]} -gt 0 ] && [ -n "$pm" ]; then
@@ -297,6 +325,7 @@ label="$([ "$backend" = cuda ] && echo "NVIDIA CUDA" || echo "Vulkan")"
 [ -n "$installed_backend" ] && [ "$installed_backend" != "$backend" ] && plan+=("switch the engines from $installed_backend to $backend")
 have_whisper || [ "$need_engines" = 1 ] || plan+=("build whisper-cli for subtitles (a few minutes)")
 [ "$desktop" = 1 ] || [ -f "$DESKTOP_FILE" ] || plan+=("add Fatima Voice Studio to the applications menu")
+[ "$need_tray_ext" = 1 ] && plan+=("turn on GNOME's tray icon extension (AppIndicator) for you: log out and back in once to see the icon")
 echo "Graphics card: $gpu_line -> $label${gpu_note:+ ($gpu_note)}"
 if [ ${#plan[@]} -gt 0 ]; then
   echo "Setup will:"
@@ -481,6 +510,14 @@ if [ "$desktop" = 1 ] || [ -f "$DESKTOP_FILE" ] || ask "Add Fatima Voice Studio 
   .venv/bin/python -c 'import sys; sys.path.insert(0, "."); import compat; sys.stdout.write(compat.desktop_entry())' > "$DESKTOP_FILE"
   command -v update-desktop-database >/dev/null && update-desktop-database -q "$(dirname "$DESKTOP_FILE")" 2>/dev/null || true
   ok "menu entry: Fatima Voice Studio"
+fi
+
+if [ "$need_tray_ext" = 1 ]; then
+  if tray_ext_installed && enable_tray_ext; then
+    ok "GNOME tray icon extension turned on: log out and back in once to see the icon"
+  else
+    warn "GNOME tray icon extension (gnome-shell-extension-appindicator): install it and turn it on in the Extensions app to see the tray icon"
+  fi
 fi
 
 echo

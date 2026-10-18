@@ -728,6 +728,10 @@ def apply() -> None:
     if not sys.platform.startswith("linux"):
         raise RuntimeError("linux/compat.py is for Linux only.")
     sys.path.insert(0, str(REPO))
+    # The CUDA engines carry only PTX for RTX 20 / Quadro T cards: the driver compiles it on first use (about two
+    # minutes for llama.cpp on a Quadro T2000) and keeps it in ~/.nv/ComputeCache, by default only 256 MB. Four
+    # engines outgrow that and would be compiled again; the engines inherit this from the app.
+    os.environ.setdefault("CUDA_CACHE_MAXSIZE", str(4 * 1024**3))
     _patch_config()
     _patch_misc()
     _patch_hardware()
