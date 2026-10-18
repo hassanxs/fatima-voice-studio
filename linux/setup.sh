@@ -38,10 +38,10 @@ LLAMA_CUDART="cudart-llama-$LLAMA_RELEASE-bin-ubuntu-cuda-13.4-x64.tar.gz"
 LLAMA_CUDART_SHA256=f4e1f95c1b86771fbbbc3fece882561182fd12984e40cbe31d082a7b15c24f15
 # s2.cpp (S2 Pro) and whisper-cli for the graphics card, built by .github/workflows/linux-engines.yml
 REPO_URL=https://github.com/hassanxs/fatima-voice-studio
-ENGINES_RELEASE=linux-engines-1
+ENGINES_RELEASE=linux-engines-2
 declare -A ENGINES_SHA256=(
-  [cuda]=beefa55e8c3abc377145bc45d0bd707facccaa1e612b1da04011a32d8f0aca92
-  [vulkan]=a88c77e95199a9355a4b2b1cd2070db0d36324382e34a904e3cc9908b7a98064
+  [cuda]=38759372c155532ad8e4b22ca29dd672dcdb1d27d65c344975dcd99d0b8ca09e
+  [vulkan]=f01451f840c18c75241623330d5e6a8e03182d9c3a31a18e29eb6cd8e4059f82
 )
 # download sizes for the plan (MB)
 # audio.cpp for Chatterbox, Kokoro, VoxCPM2, CosyVoice 3 and MOSS: its own official Linux build, Vulkan on every card
@@ -49,7 +49,7 @@ declare -A ENGINES_SHA256=(
 # also in compat.py (ACPP_URL), which compares it with bin/audiocpp/source.txt.
 ACPP_TGZ=https://github.com/0xShug0/audio.cpp/releases/download/v0.9.2/audio-v0.9.2-bin-ubuntu-x64-vulkan-portable.tar.gz
 ACPP_SHA256=37294a0d9d52383475a47df95dc725c83faee0dbfae00088f1509ed4d7f3619d
-declare -A DOWNLOAD_MB=([llama-cuda]=590 [llama-vulkan]=30 [engines-cuda]=195 [engines-vulkan]=40 [acpp]=74)
+declare -A DOWNLOAD_MB=([llama-cuda]=590 [llama-vulkan]=30 [engines-cuda]=289 [engines-vulkan]=54 [acpp]=74)
 
 ok()   { printf '  \033[32mok\033[0m    %s\n' "$*"; }
 warn() { printf '  \033[33mmissing\033[0m %s\n' "$*"; }
