@@ -16,7 +16,8 @@ What it does:
   * engine     llama-tts dies with the app (setpriv --pdeathsig), like the Windows job object
   * S2 Pro     s2.cpp for Linux (Vulkan) from linux/bin/s2cpp (setup.sh) or FVS_S2, run as the "vulkan" S2 engine
   * wording    visible "Windows" texts in the web page are rewritten (Start at login, Trash …)
-  * misc       os.startfile -> xdg-open, clipboard -> wl-copy / xclip / xsel
+  * misc       os.startfile and webbrowser.open -> gio open / xdg-open (the desktop's default apps), clipboard ->
+               wl-copy / xclip / xsel
 """
 import os
 import re
@@ -31,6 +32,7 @@ REPO = LINUX_DIR.parent
 SYSTEM_ENGINE = "system"
 
 _applied = False
+_real_webbrowser_open = None
 
 
 def fvs_home() -> Path:
@@ -403,9 +405,30 @@ def _pick_folder(start: str = "") -> str | None:
     return None  # no dialog tool installed: type the path instead
 
 
+def _opener() -> list[str] | None:
+    """How to open a link or folder with the desktop's default app. gio first: it reads the desktop's own default
+    list (e.g. /usr/share/applications/cosmic-mimeapps.list) before anything else. xdg-open, without a default set
+    by the user, takes the first app it finds folder by folder, so on Pop!_OS a Chrome Flatpak beat the default
+    Firefox."""
+    if shutil.which("gio"):
+        return ["gio", "open"]
+    return ["xdg-open"] if shutil.which("xdg-open") else None
+
+
 def _startfile(path) -> None:
-    subprocess.Popen(["xdg-open", str(path)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+    subprocess.Popen([*(_opener() or ["xdg-open"]), str(path)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def _open_url(url: str, *args, **kwargs) -> bool:
+    """The page in the user's default browser. Python's webbrowser keeps its own list of browsers (and asks
+    xdg-settings, which has xdg-open's problem, see _opener); the desktop's opener picks the right one."""
+    opener = _opener()
+    if not opener:
+        return _real_webbrowser_open(url, *args, **kwargs)
+    subprocess.Popen([*opener, url], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+    return True
 
 
 def _copy(text: str) -> None:
@@ -416,7 +439,11 @@ def _copy(text: str) -> None:
 
 
 def _patch_misc() -> None:
+    global _real_webbrowser_open
     os.startfile = _startfile  # type: ignore[attr-defined]
+    import webbrowser
+    _real_webbrowser_open = webbrowser.open
+    webbrowser.open = _open_url  # studio/ opens the page with webbrowser.open (start, tray "Open")
     trash = types.ModuleType("studio.trash")
     trash.to_recycle_bin = _to_trash
     sys.modules["studio.trash"] = trash
