@@ -896,6 +896,29 @@ function segRow(d, it) {
         ${['failed', 'cancelled'].includes(it.status) ? '<button class="btn xs accent" data-seg="retry">Retry</button>' : ''}</div></div>
   </div>`;
 }
+// The part map: one cell per part, as wide as its text, coloured by its state, a gap between scripts. It fills in
+// while the batch runs (so it's the progress bar too); a click jumps to the part. Mouse-only: the list below is the
+// accessible way through the parts.
+function partMap(d) {
+  const cur = S.state?.current;
+  return d.scripts.map((s) => `<div class="pm-script" style="flex-grow:${Math.max(1, s.chars)}">${d.items.filter((it) => it.script === s.n).map((it) => {
+    const st = cur && cur.batch === d.id && cur.item === it.id ? 'running'
+      : ['failed', 'cancelled'].includes(it.status) ? it.status : it.check ? 'flag' : it.status;
+    const tip = `Part ${it.k}${d.scripts.length > 1 ? ` · ${s.title}` : ''} · ${st === 'flag' ? `To check: ${it.check}` : STATUS[st]?.[1] || st}`;
+    return `<span class="pm st-${st}" style="flex-grow:${Math.max(1, it.text.length)}" data-item="${it.id}" title="${esc(tip)}"></span>`;
+  }).join('')}</div>`).join('');
+}
+$('b-map').addEventListener('click', (e) => {
+  const cell = e.target.closest('.pm'); if (!cell) return;
+  const it = S.detail?.items.find((x) => x.id === cell.dataset.item); if (!it) return;
+  const det = $('b-scripts').querySelector(`details.segs[data-n="${it.script}"]`);
+  if (det && !det.open) det.open = true;
+  const row = $('b-scripts').querySelector(`.seg-row[data-item="${CSS.escape(it.id)}"]`); if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.remove('jumped'); void row.offsetWidth; row.classList.add('jumped');
+});
+// The map sticks under the top bar, whose height changes with the window's width.
+new ResizeObserver(([e]) => document.documentElement.style.setProperty('--appbar-h', `${e.target.offsetHeight}px`)).observe(document.querySelector('.appbar'));
 function renderDetail() {
   const d = S.detail; if (!d) return;
   $('b-name').textContent = d.name;
@@ -915,9 +938,7 @@ function renderDetail() {
     `<button class="btn sm" data-d="rerun">${icon('refresh')} Re-run</button>`,
     busy ? '' : `<button class="icon-btn" data-d="delete" aria-label="Delete batch">${icon('trash')}</button>`,
   ].join(''));
-  const prog = $('b-progress');
-  prog.className = `progress${busy ? ' live' : ''}`;
-  prog.firstElementChild.style.width = `${100 * d.done / Math.max(1, d.total)}%`;
+  setHtml($('b-map'), partMap(d));
   const html = d.scripts.map((s) => {
     const items = d.items.filter((it) => it.script === s.n);
     const out = s.output, v = out.finished || '';

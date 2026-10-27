@@ -16,14 +16,14 @@
     --ink: #e9e8df; --paper: #161714; --card: #1e1f1c; --line: #34362f; --well: #2a2c27;
     --muted: #9b9e91; --sub: #5f6359; --accent: #6d76ff; --accent-hi: #868dff; --accent-soft: #262948;
     --red: #e5543a; --red-hi: #ff8f75; --red-soft: #3a201a; --ok: #7fcf8a; --ok-soft: #1d3321; --warn: #e6ad55; --warn-soft: #362a14;
-    --bar: #0d0e0c; --tab: #2a2c27; --wave: #45483f; color-scheme: dark; --av-bg: 27%; --av-fg: 80%;
+    --bar: #0d0e0c; --tab: #2a2c27; --wave: #6a6e61; color-scheme: dark; --av-bg: 27%; --av-fg: 80%;
   }
 }
 :root[data-theme="dark"] {
   --ink: #e9e8df; --paper: #161714; --card: #1e1f1c; --line: #34362f; --well: #2a2c27;
   --muted: #9b9e91; --sub: #5f6359; --accent: #6d76ff; --accent-hi: #868dff; --accent-soft: #262948;
   --red: #e5543a; --red-hi: #ff8f75; --red-soft: #3a201a; --ok: #7fcf8a; --ok-soft: #1d3321; --warn: #e6ad55; --warn-soft: #362a14;
-  --bar: #0d0e0c; --tab: #2a2c27; --wave: #45483f; color-scheme: dark; --av-bg: 27%; --av-fg: 80%;
+  --bar: #0d0e0c; --tab: #2a2c27; --wave: #6a6e61; color-scheme: dark; --av-bg: 27%; --av-fg: 80%;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--paper); color: var(--ink); }
@@ -271,7 +271,21 @@ select.mini { height: 26px; max-width: 150px; padding: 0 6px; border: 1px solid 
 .skel-cols .skel { height: 340px; }
 
 /* ---------- one batch ---------- */
-#b-progress { margin-bottom: 22px; }
+.pmap { position: sticky; top: var(--appbar-h, 84px); z-index: 5; display: flex; gap: 6px; margin: 0 -4px 22px; padding: 8px 4px;
+  background: var(--paper); }
+.pmap:empty { display: none; }
+.pm-script { flex: 1 1 0; display: flex; gap: 1px; min-width: 0; }
+.pm { flex: 1 1 0; min-width: 1px; height: 12px; background: var(--well); cursor: pointer; transition: background .3s, transform .15s; }
+.pm:first-child { border-radius: 3px 0 0 3px; }
+.pm:last-child { border-radius: 0 3px 3px 0; }
+.pm:only-child { border-radius: 3px; }
+.pm:hover { transform: scaleY(1.6); }
+.pm.st-done { background: var(--ok); }
+.pm.st-flag { background: var(--warn); }
+.pm.st-failed, .pm.st-cancelled { background: var(--red); }
+.pm.st-running { background: var(--accent); animation: pulse 1.2s infinite; }
+.seg-row.jumped { animation: jumped 1.6s ease-out; }
+@keyframes jumped { from { background: var(--accent-soft); } }
 .scripts-view { display: flex; flex-direction: column; gap: 14px; }
 .scard { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
 .scard .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
