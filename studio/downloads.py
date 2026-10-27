@@ -109,6 +109,7 @@ class Downloads:
             out.append({
                 "key": key, "kind": m["kind"], "label": m["label"], "short": m["short"], "about": m["about"],
                 "license": m["license"], "noncommercial": bool(m.get("noncommercial")), "page": m["page"],
+                "vram_gb": m.get("vram_gb"), "x_rt": m.get("x_rt"),
                 "installed": key in installed and not (m["kind"] == "subtitles" and self._whisper_missing()),
                 # S2 Pro needs a CUDA or Vulkan engine in use, OmniVoice an engine its builds cover; "runtime_ready"
                 # says that build (s2.cpp, omnivoice.cpp) is there too

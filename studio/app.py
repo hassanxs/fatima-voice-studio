@@ -335,10 +335,34 @@ def create_app(cfg: dict) -> FastAPI:
             "finishing": {"batch": fin[0]["id"], "script": fin[1]["n"], "progress": worker.finish_progress,
                           "gpu": next(iter(subtitles.whisper_builds(cfg)), {}).get("gpu", False)} if fin else None,
             "api_busy": worker.api_busy,
+            "gpu_memory": hardware.gpu_memory(),
             "queue": [b["id"] for b in sorted(store.batches.values(), key=lambda b: b["order"])
                       if batch_status(b) in ("running", "queued", "paused", "finishing")],
             "voices": len(voices.list()),
             "version": __version__,
+        }
+
+    @app.get("/api/system")
+    def system():
+        """The System page, asked every second: what the graphics card, processor, memory and drives are doing."""
+        def safe(read, default=None):
+            try:
+                return read()
+            except Exception:  # a reader this system doesn't have (e.g. the processor load on a Mac)
+                return default
+        hw = hardware.detect()
+        ram = safe(hardware._ram_use)
+        drives: dict[tuple, dict] = {}  # folders on the same drive share a line
+        for label, key in (("Models", "models_dir"), ("Batches", "batches_dir"), ("Exports", "exports_dir")):
+            u = hardware.disk_usage(cfg[key])
+            if u:
+                d = drives.setdefault((Path(cfg[key]).anchor, u[1]), {"folders": [], "free": u[0], "total": u[1]})
+                d["folders"].append(label)
+        return {
+            "gpu": hardware.gpu_now(), "gpu_apps": safe(hardware.gpu_apps, []), "gpus": hw["gpus"],
+            "cpu": {"name": hw["cpu"], "cores": hw["cores"], "percent": safe(hardware.cpu_percent)},
+            "ram": {"used_gb": ram[0], "total_gb": ram[1]} if ram else None,
+            "drives": list(drives.values()), "on_battery": safe(hardware.on_battery),
         }
 
     # ---- batches ----------------------------------------------------------------

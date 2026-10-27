@@ -317,12 +317,14 @@ OMNI_CODES = {"ar": "arb", "jw": "jv", "ne": "npi", "tl": "fil"}
 OMNI_LANGUAGES = [k for k in LANGUAGE_NAMES if k not in ("fo", "la")]
 
 # kind "voice": speaks text (runs on the engine). kind "subtitles": whisper.cpp for SRT timings and transcripts.
+# vram_gb: peak graphics memory, x_rt: times faster than real time, both measured on an RTX 5060 laptop GPU (8 GB, CUDA);
+# the Models page shows them on each card.
 MODELS = {
     "qwen3-tts-q8": {
         "kind": "voice", "label": "Qwen3-TTS 1.7B · Q8", "short": "Qwen3-TTS · best quality", "api_id": "qwen3-tts",
         "files": ["Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf", "mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf"],
         "license": "Apache 2.0 — commercial use OK", "page": HF + "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-        "languages": list(LANGUAGES), "vram_gb": 4.2,
+        "languages": list(LANGUAGES), "vram_gb": 4.2, "x_rt": 2,
         "about": "The default. Natural voices in 10 languages, clones a voice from a few seconds of audio. "
                  "About 2× faster than real time on an RTX 5060 laptop GPU."},
     "qwen3-tts-q4": {
@@ -338,7 +340,7 @@ MODELS = {
         "kind": "voice", "runtime": "s2", "engines": ["cuda", "vulkan"], "label": "Fish Audio S2 Pro · Q8",
         "short": "S2 Pro · expressive, 80+ languages", "api_id": "s2-pro", "files": ["s2-pro-q8_0.gguf"],
         "license": "Fish Audio Research License — non-commercial; commercial use needs a licence from Fish Audio",
-        "noncommercial": True, "page": HF + "fishaudio/s2-pro", "languages": S2_LANGUAGES, "vram_gb": 7.2,
+        "noncommercial": True, "page": HF + "fishaudio/s2-pro", "languages": S2_LANGUAGES, "vram_gb": 7.2, "x_rt": 1,
         "max_chars": 300, "tags": True,
         "about": "Very expressive, with emotion tags like [whisper] or [excited] in the text, and 80+ languages. "
                  "About real time on an NVIDIA card with 8 GB or more (half the speed of Qwen3-TTS); slower on Vulkan."},
@@ -346,7 +348,7 @@ MODELS = {
         "kind": "voice", "runtime": "s2", "engines": ["cuda", "vulkan"], "label": "Fish Audio S2 Pro · Q6",
         "short": "S2 Pro · for 6-8 GB cards", "api_id": "s2-pro-q6", "files": ["s2-pro-q6_k.gguf"],
         "license": "Fish Audio Research License — non-commercial; commercial use needs a licence from Fish Audio",
-        "noncommercial": True, "page": HF + "fishaudio/s2-pro", "languages": S2_LANGUAGES, "vram_gb": 6.2,
+        "noncommercial": True, "page": HF + "fishaudio/s2-pro", "languages": S2_LANGUAGES, "vram_gb": 6.2, "x_rt": 1,
         "max_chars": 300, "tags": True,
         "about": "Same model, compressed a little further, for graphics cards with 6 to 8 GB. Emotion tags are a "
                  "little weaker than in Q8."},
@@ -358,7 +360,7 @@ MODELS = {
         "files": ["omnivoice-base-Q8_0.gguf", "omnivoice-tokenizer-Q8_0.gguf"],
         "license": "CC-BY-NC 4.0 — non-commercial; the model's makers changed it from Apache 2.0 in July 2026", "noncommercial": True,
         "page": HF + "k2-fsa/OmniVoice",
-        "languages": OMNI_LANGUAGES, "vram_gb": 1.7,
+        "languages": OMNI_LANGUAGES, "vram_gb": 1.7, "x_rt": 4,
         "about": "Small and fast: about 4× faster than real time on an RTX 5060 laptop GPU, in under 2 GB of graphics "
                  "memory, so it also suits 4 GB cards. Clones a voice from a few seconds of audio, in 96 "
                  "languages. Runs on the processor too, more slowly."},
@@ -368,7 +370,7 @@ MODELS = {
         "files": ["omnivoice-base-Q4_K_M.gguf", "omnivoice-tokenizer-Q4_K_M.gguf"],
         "license": "CC-BY-NC 4.0 — non-commercial; the model's makers changed it from Apache 2.0 in July 2026", "noncommercial": True,
         "page": HF + "k2-fsa/OmniVoice",
-        "languages": OMNI_LANGUAGES, "vram_gb": 1.4,
+        "languages": OMNI_LANGUAGES, "vram_gb": 1.4, "x_rt": 4,
         "about": "Same model, compressed further. On a graphics card it's as fast as Q8; on the processor it's about "
                  "a third faster. Slightly less polished."},
     # runtime "acpp": spoken by audio.cpp's server (ACPP_RUNTIME) on every engine; "family" is audio.cpp's name for

@@ -3,6 +3,7 @@ import ctypes
 import os
 import shutil
 import subprocess
+import time
 import winreg
 from pathlib import Path
 
@@ -33,6 +34,64 @@ def _nvidia_smi() -> list[dict]:
             gpus.append({"name": parts[0], "vendor": "nvidia", "vram_gb": round(float(parts[1]) / 1024, 1),
                          "driver": parts[2], "integrated": False})
     return gpus
+
+
+def _smi(*args: str) -> list[list[str]]:
+    """nvidia-smi's CSV answer, one list of fields per line ([] when it isn't there or fails)."""
+    exe = shutil.which("nvidia-smi") or r"C:\Windows\System32\nvidia-smi.exe"
+    try:
+        out = subprocess.run([exe, *args, "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=3,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return [[p.strip() for p in line.split(",")] for line in out.strip().splitlines() if line.strip()]
+
+
+def _num(s: str) -> float | None:
+    try:
+        return float(s)
+    except ValueError:  # "[N/A]", "[Not Supported]"
+        return None
+
+
+_GPU_FIELDS = ("name", "util", "mem_used", "mem_total", "temp_c", "power_w", "power_limit_w", "clock_mhz")
+_gpu: tuple[float, dict | None] = (-10.0, None)
+
+
+def gpu_now() -> dict | None:
+    """What the biggest NVIDIA card is doing now: load %, memory, temperature, power, clock. None for other cards
+    (nothing as cheap reads them there). Read at most every 2 s: the top bar and the System page ask every second."""
+    global _gpu
+    if time.monotonic() - _gpu[0] < 2:
+        return _gpu[1]
+    now = None
+    if any(g["vendor"] == "nvidia" for g in detect()["gpus"]):
+        rows = [r for r in _smi("--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,"
+                                "power.draw,enforced.power.limit,clocks.gr") if len(r) == len(_GPU_FIELDS)]
+        if rows:
+            r = dict(zip(_GPU_FIELDS, max(rows, key=lambda r: _num(r[3]) or 0)))
+            now = {"name": r["name"], **{k: _num(v) for k, v in r.items() if k != "name"}}
+            for k in ("mem_used", "mem_total"):  # MiB -> GB
+                now[k] = round(now[k] / 1024, 1) if now[k] is not None else None
+    _gpu = (time.monotonic(), now)
+    return now
+
+
+def gpu_memory() -> dict | None:
+    """Graphics memory in use, for the gauge in the top bar: {"used_gb", "total_gb"}, or None."""
+    g = gpu_now()
+    return {"used_gb": g["mem_used"], "total_gb": g["mem_total"]} if g and g["mem_total"] else None
+
+
+def gpu_apps() -> list[dict]:
+    """Programs computing on the NVIDIA card (speech engines, Whisper, others). Windows often can't say how much
+    memory each one uses: then mem_gb is None."""
+    out = []
+    for pid, name, mem in (r for r in _smi("--query-compute-apps=pid,process_name,used_memory") if len(r) == 3):
+        m = _num(mem)
+        out.append({"pid": int(pid) if pid.isdigit() else None, "name": Path(name).name or name,
+                    "mem_gb": round(m / 1024, 2) if m is not None else None})
+    return out
 
 
 def _registry_gpus() -> list[dict]:
@@ -67,7 +126,8 @@ def _registry_gpus() -> list[dict]:
     return gpus
 
 
-def _ram_gb() -> float:
+def _ram_use() -> tuple[float, float]:
+    """Memory (RAM) in use and in total, in GB."""
     class MEMORYSTATUSEX(ctypes.Structure):
         _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
                     ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
@@ -77,7 +137,33 @@ def _ram_gb() -> float:
     m = MEMORYSTATUSEX()
     m.dwLength = ctypes.sizeof(m)
     ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
-    return round(m.ullTotalPhys / 1024**3, 1)
+    return round((m.ullTotalPhys - m.ullAvailPhys) / 1024**3, 1), round(m.ullTotalPhys / 1024**3, 1)
+
+
+def _ram_gb() -> float:
+    return _ram_use()[1]
+
+
+def _cpu_times() -> tuple[float, float]:
+    """Processor time spent idle and in total since start-up (any unit: only differences are used)."""
+    idle, kernel, user = (ctypes.c_ulonglong() for _ in range(3))  # FILETIMEs; kernel time includes idle time
+    ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user))
+    return float(idle.value), float(kernel.value + user.value)
+
+
+_cpu_last: tuple[float, float] | None = None
+
+
+def cpu_percent() -> float:
+    """Processor load since the last call (the first call measures a fifth of a second)."""
+    global _cpu_last
+    if _cpu_last is None:
+        _cpu_last = _cpu_times()
+        time.sleep(0.2)
+    idle, total = _cpu_times()
+    d_idle, d_total = idle - _cpu_last[0], total - _cpu_last[1]
+    _cpu_last = (idle, total)
+    return round(100 * (1 - d_idle / d_total), 1) if d_total > 0 else 0.0
 
 
 def _cpu() -> str:
@@ -187,11 +273,18 @@ def warnings(hw: dict, cfg: dict, engine: str) -> list[dict]:
     return out
 
 
-def disk_free(cfg: dict) -> int | None:
-    p = Path(cfg["models_dir"])
+def disk_usage(path: str | Path) -> tuple[int, int] | None:
+    """Free and total bytes on the drive holding this folder (or the nearest folder above it that exists)."""
+    p = Path(path)
     while not p.exists() and p.parent != p:
         p = p.parent
     try:
-        return shutil.disk_usage(p).free
+        u = shutil.disk_usage(p)
     except OSError:
         return None
+    return u.free, u.total
+
+
+def disk_free(cfg: dict) -> int | None:
+    u = disk_usage(cfg["models_dir"])
+    return u[0] if u else None

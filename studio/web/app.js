@@ -38,6 +38,7 @@ const ICONS = {
   speaker: '<path d="M11 5 6 9H3v6h3l5 4V5ZM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/>',
   text: '<path d="M4 6h16M4 11h16M4 16h10"/>',
   gauge: '<path d="M12 14l4-4M4 18a9 9 0 1 1 16 0"/>',
+  activity: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
   question: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
   code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>',
@@ -369,8 +370,8 @@ function languageOptions(selected, model) {
 const createModel = () => $('model')?.value || S.state?.default_model;
 
 // ---------- routing ----------
-const VIEWS = ['create', 'batches', 'batch', 'voices', 'models', 'setup', 'connect', 'settings', 'words', 'transcribe', 'help', 'about'];
-const MENU_VIEWS = ['settings', 'words', 'models', 'setup', 'connect', 'about'];  // the pages in the menu on the right
+const VIEWS = ['create', 'batches', 'batch', 'voices', 'models', 'setup', 'connect', 'settings', 'words', 'transcribe', 'system', 'help', 'about'];
+const MENU_VIEWS = ['settings', 'words', 'models', 'setup', 'system', 'connect', 'about'];  // the pages in the menu on the right
 function route() {
   const [view, arg] = (location.hash.slice(1) || 'create').split('/');
   let v = VIEWS.includes(view) ? view : 'create';
@@ -386,12 +387,12 @@ function route() {
   document.querySelectorAll('#settings-menu a').forEach((a) => a.classList.toggle('on', a.dataset.view === v));
   closeMenu();
   ({ create: showCreate, batches: loadBatches, batch: loadDetail, voices: loadVoices, models: loadModels, setup: loadSetup,
-     connect: loadConnect, settings: loadSettings, words: loadWords, transcribe: loadTranscribe, help: loadHelp, about: loadAbout })[v]?.();
+     connect: loadConnect, settings: loadSettings, words: loadWords, transcribe: loadTranscribe, system: loadSystem, help: loadHelp, about: loadAbout })[v]?.();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
 
-// The menu on the right of the top bar: Settings, Pronunciation, Models, Setup, Connect, About.
+// The menu on the right of the top bar: Settings, Pronunciation, Models, Setup, System, Connect, About.
 function closeMenu() { $('settings-menu').hidden = true; $('menu-btn').setAttribute('aria-expanded', 'false'); }
 $('menu-btn').addEventListener('click', () => {
   const m = $('settings-menu');
@@ -447,6 +448,16 @@ async function pollState() {
   $('engine-text').textContent = text; $('engine-sub').textContent = sub; $('engine-sub').title = sub;
   $('engine-dot').className = `state-dot ${dot}${ring ? ' ring' : ''}`;
   $('engine-dot').style.setProperty('--p', !ring ? 0 : st.current ? Math.min(99, Math.round(100 * eng.frames / eng.frames_expected)) : finPct);
+  // Graphics memory in use (NVIDIA cards): amber from 85 %, red from 95 %.
+  const mem = st.gpu_memory;
+  $('vram').hidden = !mem;
+  if (mem) {
+    const pct = Math.min(100, 100 * mem.used_gb / mem.total_gb);
+    $('vram').className = `vram${pct >= 95 ? ' full' : pct >= 85 ? ' high' : ''}`;
+    $('vram').querySelector('i').style.width = `${pct}%`;
+    $('vram-text').textContent = `${mem.used_gb.toFixed(1)}/${mem.total_gb.toFixed(0)} GB`;
+    $('vram').title = `Graphics memory: ${mem.used_gb.toFixed(1)} of ${mem.total_gb.toFixed(1)} GB in use, by the voice models and everything else on this PC`;
+  }
   $('foot-right').innerHTML = `<a href="#about">v${esc(st.version)}</a> · ${esc(st.api_base)}`;
   if (st.update?.status === 'available') $('foot-left').innerHTML = `Fatima Voice Studio · <a href="#about">update ${esc(st.update.latest)} available</a>`;
   renderUpdateBadge();
@@ -1029,6 +1040,80 @@ $('b-scripts').addEventListener('click', run(async (e) => {
   $('b-scripts')._html = ''; renderDetail();
 }));
 
+// ---------- SYSTEM ----------
+// Asked every second while the page is open. The charts keep the last two minutes, in this tab only.
+S.sys = { hist: { util: [], vram: [], cpu: [], ram: [] }, timer: null };
+async function loadSystem() {
+  clearTimeout(S.sys.timer);
+  try {
+    const d = await api('/api/system');
+    const h = S.sys.hist, g = d.gpu;
+    const add = (k, v) => { h[k].push(v); if (h[k].length > 120) h[k].shift(); };
+    add('util', g?.util ?? null); add('vram', g?.mem_total ? 100 * g.mem_used / g.mem_total : null);
+    add('cpu', d.cpu.percent); add('ram', d.ram ? 100 * d.ram.used_gb / d.ram.total_gb : null);
+    if (S.view === 'system') renderSystem(d);
+  } catch (e) {
+    if (S.view === 'system') setHtml($('system-body'), `<p class="err-note">${esc(e.message)}</p>`);
+  }
+  if (S.view === 'system') S.sys.timer = setTimeout(loadSystem, 1000);
+}
+// A 0-100 % line over the last two minutes, filled below; gaps where nothing was read.
+function spark(vals) {
+  const n = 120, x = (i) => ((n - vals.length + i) * 100 / (n - 1)).toFixed(2);
+  const runs = []; let cur = [];
+  vals.forEach((v, i) => {
+    if (v == null) { if (cur.length) runs.push(cur); cur = []; return; }
+    cur.push([x(i), (40 - 38 * Math.min(100, v) / 100).toFixed(2)]);
+  });
+  if (cur.length) runs.push(cur);
+  const paths = runs.filter((r) => r.length > 1).map((r) => {
+    const line = r.map((p) => p.join(',')).join('L');
+    return `<path class="fill" d="M${r[0][0]},40L${line}L${r[r.length - 1][0]},40Z"/><path class="line" d="M${line}"/>`;
+  }).join('');
+  return `<svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">${paths}</svg>`;
+}
+const level = (pct) => pct >= 95 ? ' full' : pct >= 85 ? ' high' : '';
+function sysTile(label, big, sub, key, pct = null) {
+  return `<div class="card stile${pct != null ? level(pct) : ''}"><div class="micro">${label}</div>
+    <div class="big">${big}</div><div class="sub">${sub}</div>
+    ${pct != null ? `<div class="meter"><i style="width:${Math.min(100, pct)}%"></i></div>` : ''}${spark(S.sys.hist[key])}</div>`;
+}
+function renderSystem(d) {
+  const g = d.gpu, st = S.state, eng = st?.engine;
+  const card = (d.gpus || []).find((x) => !x.integrated) || d.gpus?.[0];
+  const noGpu = card ? 'Only NVIDIA cards report this' : 'No graphics card found';
+  const gpct = g?.mem_total ? 100 * g.mem_used / g.mem_total : null, rpct = d.ram ? 100 * d.ram.used_gb / d.ram.total_gb : null;
+  const tiles = [
+    sysTile('Graphics card load', g?.util != null ? `${Math.round(g.util)}%` : '—', g ? esc(g.name) : noGpu, 'util'),
+    sysTile('Graphics memory', g?.mem_total ? `${g.mem_used.toFixed(1)} GB` : '—', g?.mem_total ? `of ${g.mem_total.toFixed(1)} GB` : noGpu, 'vram', gpct),
+    sysTile('Processor', d.cpu.percent != null ? `${Math.round(d.cpu.percent)}%` : '—', `${d.cpu.cores} threads · ${esc(d.cpu.name)}`, 'cpu'),
+    sysTile('Memory (RAM)', d.ram ? `${d.ram.used_gb.toFixed(1)} GB` : '—', d.ram ? `of ${d.ram.total_gb.toFixed(1)} GB` : 'Not readable on this system', 'ram', rpct),
+  ].join('');
+  const row = (k, v) => v == null ? '' : `<div class="sys-row"><span>${k}</span><b>${v}</b></div>`;
+  const gpuCard = `<section class="card panel"><h2 class="sys-h">${icon('cpu')} Graphics card</h2>${card || g ? `
+      ${row('Name', esc(g?.name || card.name))}
+      ${row('Temperature', g?.temp_c != null ? `${Math.round(g.temp_c)} °C` : null)}
+      ${row('Power', g?.power_w != null ? `${Math.round(g.power_w)} W${g.power_limit_w ? ` of ${Math.round(g.power_limit_w)} W` : ''}` : null)}
+      ${row('Clock', g?.clock_mhz != null ? `${Math.round(g.clock_mhz)} MHz` : null)}
+      ${row('Driver', card?.driver ? esc(card.driver) : null)}
+      ${(d.gpus || []).filter((x) => x !== card).map((x) => row('Also', `${esc(x.name)}${x.integrated ? ' (built in)' : ''}`)).join('')}
+      ${d.on_battery ? `<p class="flag-note">${icon('alert')} On battery: laptop graphics cards run much slower. Plug in the charger.</p>` : ''}`
+    : '<p class="help">No graphics card found: speech runs on the processor.</p>'}</section>`;
+  const loaded = [eng?.s2_loaded && 'S2 Pro', eng?.omni_loaded && 'OmniVoice', eng?.acpp_loaded && 'audio.cpp models'].filter(Boolean);
+  const appCard = `<section class="card panel"><h2 class="sys-h">${icon('activity')} Using the graphics card</h2>
+      ${row('This app', eng ? esc($('engine-text').textContent) : null)}
+      ${row('Kept loaded', loaded.length ? loaded.join(' · ') : 'Nothing (Qwen3-TTS loads for each part)')}
+      ${row('Queue', st ? plural(st.queue.length, 'batch', 'batches') : null)}
+      ${d.gpu_apps.length ? `<div class="micro" style="margin-top:6px">Programs computing on it</div>${d.gpu_apps.map((a) => row(esc(a.name), a.mem_gb != null ? `${a.mem_gb.toFixed(1)} GB` : '—')).join('')}`
+        : `<p class="help">${g ? 'No program is computing on the graphics card right now.' : 'Only NVIDIA cards list the programs using them.'}</p>`}</section>`;
+  const driveCard = `<section class="card panel"><h2 class="sys-h">${icon('folder')} Drives</h2>${d.drives.map((x) => {
+      const pct = 100 * (x.total - x.free) / x.total;
+      return `<div class="drive${level(pct)}"><div class="sys-row"><span>${x.folders.join(' · ')}</span><b>${fmtSize(x.free)} free of ${fmtSize(x.total)}</b></div>
+        <div class="meter"><i style="width:${pct}%"></i></div></div>`;
+    }).join('')}</section>`;
+  setHtml($('system-body'), `<div class="stiles">${tiles}</div><div class="sys-cols">${gpuCard}${appCard}${driveCard}</div>`);
+}
+
 // ---------- VOICES ----------
 async function loadVoicesList() {
   try { S.voices = await api('/api/voices'); } catch { /* keep the old list */ }
@@ -1284,6 +1369,7 @@ function modelCard(m) {
   return `<div class="card mcard"><div class="main">
       <div class="name">${esc(m.label)} ${licenseBadge(m)}${m.default ? '<span class="chip accent">Default</span>' : ''}${m.recommended && !m.installed ? '<span class="chip dark">Recommended</span>' : ''}</div>
       <div class="about">${esc(m.about)}</div>
+      ${m.x_rt || m.vram_gb ? `<div class="mstats" title="Measured on an RTX 5060 laptop GPU (8 GB, CUDA). Faster cards are quicker; the processor alone is much slower.">${m.x_rt ? `<span>${icon('gauge')} ${m.x_rt === 1 ? 'about real time' : `${m.x_rt}× faster than real time`}</span>` : ''}${m.vram_gb ? `<span>${icon('cpu')} ${m.vram_gb} GB graphics memory</span>` : ''}</div>` : ''}
       <div class="meta"><span>${fmtSize(m.size)}</span>${m.shared?.length ? `<span>shares ${plural(m.shared.length, 'file')} with other models (downloaded once)</span>` : ''}<a href="${esc(m.page)}" target="_blank" rel="noopener">Model page ↗</a>${m.fit && !['fits', 'cpu', 'unsupported'].includes(m.fit) ? `<span style="color:var(--warn)">${m.fit === 'tight' ? 'tight fit for your GPU' : 'too big for your GPU'}</span>` : ''}${m.runtime === 's2' && S.state?.engine?.engine === 'vulkan' ? '<span style="color:var(--warn)">slower on Vulkan (about 1.5× slower than real time)</span>' : ''}${m.runtime === 'omni' && S.state?.engine?.engine === 'cpu' ? '<span style="color:var(--warn)">on the processor: 2–3× slower than real time</span>' : ''}${m.key === 'chatterbox' && S.state?.engine?.engine === 'cpu' ? '<span style="color:var(--warn)">on the processor: about 10× slower than real time</span>' : ''}</div>
       ${m.installed && !m.runtime_ready && m.engine_ok && !(m.runtime_job && ['downloading', 'checking', 'installing'].includes(m.runtime_job.status)) ? `<div class="err-note">${m.runtime_job?.status === 'failed' ? `Its ${m.runtime_part || 'engine'} part didn't download: ${esc(m.runtime_job.error || '')}` : m.runtime_part === 'pronunciation' ? 'Its pronunciation part (eSpeak NG) is missing.' : 'Its engine part for this graphics card is missing.'} <button class="btn xs" data-m="download" data-key="${m.key}">${icon('download')} Get it</button></div>` : ''}
       ${m.installed && !m.engine_ok ? (m.runtime === 's2' ? '<div class="err-note">Needs the NVIDIA · CUDA or AMD / Intel · Vulkan engine: switch to one on Setup.</div>' : `<div class="err-note">${esc(m.engine_note)}: switch to another engine on Setup.</div>`) : ''}

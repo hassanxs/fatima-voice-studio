@@ -94,6 +94,11 @@ body.locked .nav-caret { display: none; }
 .state-dot.busy { background: #f5a524; animation: pulse 1.2s ease-in-out infinite; }
 .state-dot.error { background: var(--red); }
 .state-dot.off { background: var(--muted); }
+.vram { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; padding-left: 10px; border-left: 1px solid rgba(255,255,255,.15); color: var(--bar-text); cursor: default; }
+.vram-bar { width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; }
+.vram-bar i { display: block; height: 100%; background: var(--lime); transition: width .6s, background .3s; }
+.vram.high .vram-bar i { background: #f5a524; }
+.vram.full .vram-bar i { background: var(--red); }
 .state-dot.ring { width: 13px; height: 13px; animation: none; background: conic-gradient(#f5a524 calc(var(--p, 0) * 1%), rgba(255,255,255,.18) 0);
   -webkit-mask: radial-gradient(circle, transparent 3px, #000 3.5px); mask: radial-gradient(circle, transparent 3px, #000 3.5px); }
 @keyframes pulse { 50% { opacity: .35; } }
@@ -353,6 +358,9 @@ select.mini { height: 26px; max-width: 150px; padding: 0 6px; border: 1px solid 
 .mcard .main { flex: 1 1 380px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .mcard .name { font-weight: 700; font-size: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .mcard .about { font-size: 13px; color: var(--muted); }
+.mcard .mstats { display: flex; flex-wrap: wrap; gap: 6px; cursor: default; }
+.mcard .mstats span { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: var(--well); font: 500 11px var(--mono); color: var(--ink); }
+.mcard .mstats svg.i { width: 12px; height: 12px; color: var(--accent); }
 .mcard .meta { font: 11px var(--mono); color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .mcard .acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; min-width: 220px; }
 .whisper-where { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0 0 12px; border-radius: var(--r-card);
@@ -503,3 +511,28 @@ dialog.modal form { display: flex; flex-direction: column; gap: 12px; }
   .seg-row .tools { grid-column: 2; align-items: flex-start; }
   .seg-row .ap { width: 100%; }
 }
+
+/* ---------- system ---------- */
+.stiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+@media (max-width: 1000px) { .stiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .stiles { grid-template-columns: 1fr; } }
+.stile { padding: 16px 18px 0; display: flex; flex-direction: column; gap: 4px; overflow: hidden; --c: var(--accent); }
+.stile.high, .drive.high { --c: var(--warn); }
+.stile.full, .drive.full { --c: var(--red); }
+.stile .big { font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stile .sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meter { height: 5px; border-radius: 3px; background: var(--well); overflow: hidden; margin-top: 6px; }
+.meter i { display: block; height: 100%; background: var(--c, var(--accent)); transition: width .6s; }
+.spark { display: block; width: calc(100% + 36px); height: 54px; margin: 10px -18px 0; }
+.spark .line { fill: none; stroke: var(--c); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.spark .fill { fill: var(--c); opacity: .14; }
+.sys-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+.sys-cols .panel { gap: 0; }
+.sys-h { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
+.sys-h svg.i { width: 16px; height: 16px; color: var(--accent); }
+.sys-row { display: flex; justify-content: space-between; gap: 14px; font-size: 13px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.sys-row > span { color: var(--muted); }
+.sys-row > b { font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.drive { --c: var(--accent); padding-bottom: 8px; }
+.drive .sys-row > b { white-space: nowrap; }
+.sys-cols .help { margin-top: 8px; }

@@ -333,6 +333,21 @@ def _ram_gb() -> float:
     return 0.0
 
 
+def _ram_use() -> tuple[float, float]:
+    info = {}
+    for line in Path("/proc/meminfo").read_text().splitlines():
+        k, _, v = line.partition(":")
+        info[k] = int(v.split()[0]) if v.split() else 0
+    total = info.get("MemTotal", 0)
+    return round((total - info.get("MemAvailable", 0)) / 1024**2, 1), round(total / 1024**2, 1)
+
+
+def _cpu_times() -> tuple[float, float]:
+    """Idle and total processor time since start-up (the "cpu" line of /proc/stat: idle + iowait are idle)."""
+    v = [float(x) for x in Path("/proc/stat").read_text().splitlines()[0].split()[1:]]
+    return v[3] + v[4], sum(v[:8])  # leave out guest time: it's counted in user time already
+
+
 def _cpu() -> str:
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
@@ -367,6 +382,8 @@ def _patch_hardware() -> None:
         del sys.modules["winreg"]
     hardware._registry_gpus = _lspci_gpus
     hardware._ram_gb = _ram_gb
+    hardware._ram_use = _ram_use
+    hardware._cpu_times = _cpu_times
     hardware._cpu = _cpu
     hardware.on_battery = _on_battery
     hardware.recommended_engine = lambda hw: SYSTEM_ENGINE

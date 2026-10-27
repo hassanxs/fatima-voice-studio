@@ -24,7 +24,7 @@
   <div class="bar-right">
     <div class="engine">
       <div class="engine-state">
-        <div class="engine-line"><span class="state-dot" id="engine-dot"></span><span id="engine-text">Connecting…</span></div>
+        <div class="engine-line"><span class="state-dot" id="engine-dot"></span><span id="engine-text">Connecting…</span><span class="vram" id="vram" hidden><span class="vram-bar"><i></i></span><span id="vram-text"></span></span></div>
         <div class="engine-sub" id="engine-sub"></div>
       </div>
     </div>
@@ -38,6 +38,7 @@
     <a href="#words" role="menuitem" data-view="words"><span data-icon="text"></span><span class="t"><b>Pronunciation</b><span>Names, abbreviations and numbers</span></span></a>
     <a href="#models" role="menuitem" data-view="models"><span data-icon="box"></span><span class="t"><b>Models</b><span>Voice, subtitle and tool downloads</span></span></a>
     <a href="#setup" role="menuitem" data-view="setup"><span data-icon="cpu"></span><span class="t"><b>Setup</b><span>Hardware, engine, speed test</span></span></a>
+    <a href="#system" role="menuitem" data-view="system"><span data-icon="activity"></span><span class="t"><b>System</b><span>Graphics card, processor and memory, live</span></span></a>
     <a href="#connect" role="menuitem" data-view="connect"><span data-icon="plug"></span><span class="t"><b>Connect</b><span>API and AI agents</span></span></a>
     <hr>
     <a href="#about" role="menuitem" data-view="about"><span data-icon="info"></span><span class="t"><b>About</b><span>Version, updates, licences, this PC</span></span></a>
@@ -403,6 +404,16 @@
 </main>
 
 <!-- ============ ABOUT ============ -->
+<main class="page" id="view-system" hidden>
+  <div class="page-head">
+    <div>
+      <div class="title-row"><h1>System</h1><span class="kicker">LIVE · EVERY SECOND</span></div>
+      <p class="lede">What the graphics card, processor, memory and drives are doing right now. The charts show the last two minutes while this page is open.</p>
+    </div>
+  </div>
+  <div id="system-body"><div class="skel-cols"><div class="skel"></div><div class="skel"></div></div></div>
+</main>
+
 <main class="page" id="view-about" hidden>
   <div class="page-head">
     <div>
