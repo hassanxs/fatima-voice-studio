@@ -1136,9 +1136,47 @@ function avatar(name) {
 }
 const emptyCard = (pic, title, text, action = '', style = '') => `<div class="card empty big"${style ? ` style="${style}"` : ''}>
   <span class="pic">${icon(pic)}</span><b>${title}</b><p>${text}</p>${action}</div>`;
+// Filters over the library: the kind of voice, its language, and a search on names and notes. The kind and the
+// language are remembered in this browser (a convenience: without storage the page starts from All).
+const VFILTER = 'fvs-voice-filter';
+S.vf = { kind: 'all', lang: '', ...(() => { try { return JSON.parse(localStorage.getItem(VFILTER) || '{}'); } catch { return {}; } })() };
+const voiceKind = (v) => v.source === 'kokoro' ? 'kokoro' : v.source === 'found' ? 'found' : 'clip';
+const VOICE_KINDS = [['all', 'All'], ['clip', 'Your clips'], ['found', 'Found'], ['kokoro', 'Kokoro']];
+function renderVoiceFilter() {
+  const count = (k) => k === 'all' ? S.voices.length : S.voices.filter((v) => voiceKind(v) === k).length;
+  if (!count(S.vf.kind)) S.vf.kind = 'all';
+  const langs = [...new Set(S.voices.map((v) => v.language))].sort((a, b) => langName(a).localeCompare(langName(b)));
+  if (S.vf.lang && !langs.includes(S.vf.lang)) S.vf.lang = '';
+  $('voice-filter').hidden = !S.voices.length;
+  setHtml($('voice-kinds'), VOICE_KINDS.filter(([k]) => k === 'all' || count(k)).map(([k, label]) =>
+    `<button type="button" class="fchip" data-kind="${k}" aria-pressed="${S.vf.kind === k}">${label} <span>${count(k)}</span></button>`).join(''));
+  setHtml($('voice-filter-lang'), `<option value="">All languages</option>${langs.map((l) =>
+    `<option value="${esc(l)}"${S.vf.lang === l ? ' selected' : ''}>${esc(langName(l))} (${S.voices.filter((v) => v.language === l).length})</option>`).join('')}`);
+  $('voice-filter-lang').value = S.vf.lang;
+}
+function setVoiceFilter(change) {
+  Object.assign(S.vf, change);
+  try { localStorage.setItem(VFILTER, JSON.stringify({ kind: S.vf.kind, lang: S.vf.lang })); } catch { /* storage off */ }
+  renderVoiceCards();
+}
+$('voice-kinds').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) setVoiceFilter({ kind: b.dataset.kind }); });
+$('voice-filter-lang').addEventListener('change', (e) => setVoiceFilter({ lang: e.target.value }));
+$('voice-search').addEventListener('input', renderVoiceCards);
+$('voice-cards').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-vf="clear"]')) return;
+  $('voice-search').value = ''; setVoiceFilter({ kind: 'all', lang: '' });
+});
 function renderVoiceCards() {
   const def = S.settings?.default_voice;
-  const html = S.voices.length ? S.voices.map((v) => `
+  renderVoiceFilter();
+  // Each searched word matches the start of a word in the name or notes ("male" doesn't find "female").
+  const terms = $('voice-search').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = (v) => `${v.name} ${v.notes || ''}`.toLowerCase().split(/[^\p{L}\p{N}]+/u);
+  const shown = S.voices.filter((v) => (S.vf.kind === 'all' || voiceKind(v) === S.vf.kind) && (!S.vf.lang || v.language === S.vf.lang)
+    && (!terms.length || terms.every((t) => words(v).some((w) => w.startsWith(t)))));
+  const html = !S.voices.length ? null : !shown.length
+    ? emptyCard('search', 'No voices match', 'Try another language or kind of voice, or a shorter search.', '<button type="button" class="btn sm" data-vf="clear">Show all voices</button>', 'grid-column:1/-1')
+    : shown.map((v) => `
     <section class="card vcard${v.id === def ? ' default' : ''}" data-id="${esc(v.id)}">
       <div class="top">${avatar(v.name)}<div class="who"><span class="name">${esc(v.name)}</span><span class="lang">${esc(langName(v.language))}</span></div>${v.id === def ? '<span class="chip accent">Default</span>' : ''}${v.source === 'found' ? '<span class="chip">Found</span>' : ''}${v.source === 'kokoro' ? '<span class="chip">Kokoro</span>' : ''}</div>
       <div class="meta"><span>${v.seconds} s clip</span>${v.denoised ? '<span>noise reduced</span>' : ''}<span>${fmtWhen(v.created)}</span></div>
@@ -1153,8 +1191,8 @@ function renderVoiceCards() {
         ${v.id === def ? `<span class="icon-btn on" title="The default voice" aria-label="The default voice">${icon('star')}</span>` : `<button class="icon-btn" data-v="default" title="Make default" aria-label="Make default">${icon('star')}</button>`}
         <button class="icon-btn" data-v="delete" title="Delete voice" aria-label="Delete voice">${icon('trash')}</button>
       </div>
-    </section>`).join('') : emptyCard('users', 'No voices yet', 'Add a 6–15 second clip of a voice above, or find a brand-new voice that belongs to nobody.', '', 'grid-column:1/-1');
-  setHtml($('voice-cards'), html);
+    </section>`).join('');
+  setHtml($('voice-cards'), html ?? emptyCard('users', 'No voices yet', 'Add a 6–15 second clip of a voice above, or find a brand-new voice that belongs to nobody.', '', 'grid-column:1/-1'));
 }
 
 // Adding a voice from a file
