@@ -47,7 +47,8 @@ def relaunch(args: list[str]) -> None:
     """Start a new copy once this one has let go of the port, the same way the shortcuts start it."""
     exe = config.ROOT / LAUNCHER
     cmd = ([str(exe)] if config.INSTALLED and exe.exists() else [sys.executable, "-m", "studio"]) + args
-    subprocess.Popen(cmd + ["--no-browser"], cwd=config.ROOT, creationflags=DETACHED)
+    extra = {"creationflags": DETACHED} if sys.platform == "win32" else {"start_new_session": True}
+    subprocess.Popen(cmd + ["--no-browser"], cwd=config.ROOT, **extra)
 
 
 def parse_version(v: str) -> tuple:

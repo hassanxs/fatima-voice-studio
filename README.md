@@ -198,6 +198,7 @@ About page when an update is ready. Older installers stay on the [releases page]
 
 | Version | What changed |
 |---|---|
+| [0.4.5](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.5) | Use the app from other computers on your network. New System page and graphics memory gauge; Voices page filters and search; a part map on the Batch page. |
 | [0.4.4](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.4) | S2 Pro uses 4-6 GB graphics cards instead of only the processor. Linux: tray icon on GNOME (Fedora); newer NVIDIA drivers recognised. |
 | [0.4.3](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.3) | Linux: every voice model works (OmniVoice and the audio.cpp models too); the menu entry starts the app on desktops without a tray; older NVIDIA drivers fall back to Vulkan. |
 | [0.4.2](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.2) | Fixed an extra bit of word at the start of takes with some voices: clips now end at a real pause, and voice cards warn about clips cut mid-word. |
@@ -251,8 +252,9 @@ Pushing a `v*` tag makes GitHub Actions build it and attach it to a release.
 Fatima Voice Studio runs entirely on your PC. It has no telemetry, no analytics and no account. It only goes
 online when you ask it to: downloading an engine build (from GitHub) or a model (from Hugging Face) with the
 Download buttons, checking for updates (GitHub, can be turned off), or reading a link you (or your AI agent) give
-it. Scripts, voices and audio never leave your PC. The API and MCP server listen on `127.0.0.1` only and require
-the API key.
+it. Scripts, voices and audio never leave your PC. The app, API and MCP server listen on `127.0.0.1` only, unless you
+turn on Settings → Other computers: then devices on your local network can use them too (no password for the app;
+the API and MCP still need the key), and anything from the internet is refused.
 
 ## Licence
 

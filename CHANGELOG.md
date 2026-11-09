@@ -2,6 +2,15 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
+## 0.4.5
+- Use the app from other computers on your network: turn on Settings → Other computers and open the address it shows on the other PC, laptop or phone. Voiceovers are made on this PC's graphics card. No password on your network; devices on the internet are always refused. Settings, folders, downloads and updates stay on this PC.
+- New System page (in the menu): graphics card load and memory, processor and memory, temperature, and free space on your drives, live.
+- The top bar shows how much graphics memory is in use (NVIDIA cards).
+- Model cards show each voice model's speed and graphics memory.
+- Voices page: filter by kind of voice and by language, and search by name or notes.
+- Batch page: a map of every part, coloured by state; click one to jump to it.
+- Dark mode: brighter waveforms.
+
 ## 0.4.4
 - Fish Audio S2 Pro on graphics cards with 4 to 6 GB: it now uses the card for most of the work instead of running only on the processor, about 1.5 times faster there.
 - Linux (GNOME, e.g. Fedora): setup turns on what GNOME needs to show the tray icon; log out and back in once.
