@@ -60,6 +60,25 @@ See [Files and folders](files-and-folders.md).
 | **API key** | The password other apps and AI agents use (see [Connect](connect.md)). At least 8 characters, no spaces. Change it if it was shared by mistake; then update your apps and agents. | made at first start |
 | **Hugging Face token** | Not needed for any model the app offers today. | empty |
 
+## Other computers
+
+Turn on **Use from other computers on my network** to make voiceovers from other PCs, laptops or phones on the same
+Wi-Fi or network, on this PC's graphics card. Then click **Restart now**. The card shows the address to open in the
+other computer's browser, like `http://192.168.1.20:9830/`.
+
+- **No password.** Anyone on your network can use it. Devices on the internet are always refused, even if your
+  router forwards the port.
+- **What other computers can do:** everything you make voiceovers with: Create, Batches, Voices, Transcribe,
+  Pronunciation, and downloading finished audio (the **ZIP** button on a batch).
+- **What stays on this PC:** Settings, the Browse and folder buttons, downloading or removing models and engines, and
+  updates.
+- The first time, Windows asks for permission to let other devices in (Windows Firewall). If you said No, click
+  **Allow in Windows Firewall** on the card.
+- If the card says Windows treats your network as **Public**, other devices are blocked. On this PC open Windows
+  **Settings → Network & internet**, pick your network and choose **Private network**.
+- The address can change when the router gives this PC a new one. The card always shows the current address.
+- Turning it off refuses other devices at once. **Restart now** stops the app listening on the network altogether.
+
 ## Updates
 
 Updates are on the **About** page now (menu at the top right): what's new, the **Quick update** and **Full

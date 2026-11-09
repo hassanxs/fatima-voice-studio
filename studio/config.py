@@ -38,6 +38,7 @@ VOICES = HOME / "voices"
 DEFAULTS = {
     "host": "127.0.0.1",
     "port": 9830,
+    "lan": False,  # also answer other devices on the local network (see lan.py); applies after a restart
     "api_key": None,  # generated on first run
     "batches_dir": str(MUSIC / ("Batches" if INSTALLED else "batches")),
     "exports_dir": str(MUSIC / ("Exports" if INSTALLED else "exports")),  # where agents (MCP) save audio and exports
@@ -480,7 +481,7 @@ def voice_models() -> list[str]:
     return [k for k, m in MODELS.items() if m["kind"] == "voice"]
 
 
-EDITABLE = {"batches_dir", "exports_dir", "default_model", "default_language", "default_voice", "port", "api_key",
+EDITABLE = {"batches_dir", "exports_dir", "default_model", "default_language", "default_voice", "port", "lan", "api_key",
             "notify", "agent_read_dirs", "agents_noncommercial", "check_updates", "loudness", "formats", "mp3_bitrate",
             "subtitles", "subtitles_model", "pause_segment", "pause_paragraph", "max_chars", "hf_token", "timeout_s",
             "speed", "spell_numbers"}

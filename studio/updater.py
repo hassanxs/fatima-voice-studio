@@ -33,6 +33,21 @@ RUNTIME_FILE = config.ROOT / "runtime.txt"  # written into installed copies by t
 DETACHED = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 
 request_exit = None  # set by __main__: closes the app cleanly (tray + server) so the update can replace it
+restart_requested = False  # read by __main__ once the app has closed: start it again
+
+
+def restart() -> None:
+    """Close the app cleanly and start it again (e.g. a setting that needs a restart)."""
+    global restart_requested
+    restart_requested = True
+    threading.Timer(0.5, lambda: (request_exit or (lambda: os._exit(0)))()).start()
+
+
+def relaunch(args: list[str]) -> None:
+    """Start a new copy once this one has let go of the port, the same way the shortcuts start it."""
+    exe = config.ROOT / LAUNCHER
+    cmd = ([str(exe)] if config.INSTALLED and exe.exists() else [sys.executable, "-m", "studio"]) + args
+    subprocess.Popen(cmd + ["--no-browser"], cwd=config.ROOT, creationflags=DETACHED)
 
 
 def parse_version(v: str) -> tuple:

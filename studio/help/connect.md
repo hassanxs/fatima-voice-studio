@@ -13,8 +13,10 @@ be running for either to work.
 Other programs prove they're allowed with the **API key**, a long password made when the app first started.
 Copy it from the Connect page or from the tray menu (**Copy API key**). Requests without it are refused.
 
-The API and MCP only listen on your own PC (`127.0.0.1`): other computers on your network can't reach them. If the
-key was shared by mistake, change it in **Settings → App**, then update your apps and agents.
+The API and MCP only listen on your own PC (`127.0.0.1`), unless you turn on **Settings → Other computers**. Then
+apps and agents on other computers on your network can use them too, at this PC's network address, still with the
+key (the Connect page shows the right address on each computer). If the key was shared by mistake, change it in
+**Settings → App**, then update your apps and agents.
 
 ## OpenAI-compatible API
 

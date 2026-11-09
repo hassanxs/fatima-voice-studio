@@ -424,6 +424,7 @@ async function pollState() {
     return;
   }
   const st = S.state;
+  document.body.classList.toggle('remote', !!st.remote);  // on another device: no folders, settings or downloads here
   const wasLocked = document.body.classList.contains('locked');
   document.body.classList.toggle('locked', !st.setup_ready);
   if (!st.setup_ready && !['setup', 'help'].includes(S.view)) location.hash = '#setup';
@@ -1497,14 +1498,15 @@ $('setup-body').addEventListener('click', run(async (e) => {
 // ---------- CONNECT ----------
 async function loadConnect() {
   S.settings = await api('/api/settings');
-  const s = S.settings, base = S.state.api_base, key = s.api_key, port = s.port;
+  const s = S.settings, base = S.state.api_base, key = s.api_key;
+  const hostPort = new URL(base).host;  // 127.0.0.1 on this PC, its network address on other devices
   const voice = S.voices[0]?.name || 'Narrator';
   const code = (text) => `<div class="code"><button class="icon-btn copy" data-copy="${esc(text)}" aria-label="Copy">${icon('copy')}</button>${esc(text)}</div>`;
   const tabs = {
-    claude: `claude mcp add --scope user --transport http fatima-voice-studio http://127.0.0.1:${port}/mcp --header "Authorization: Bearer ${key}"`,
-    codex: `# ~/.codex/config.toml\n[mcp_servers.fatima-voice-studio]\nurl = "http://127.0.0.1:${port}/mcp"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
-    antigravity: `// ~/.gemini/config/mcp_config.json\n{ "mcpServers": { "fatima-voice-studio": { "serverUrl": "http://127.0.0.1:${port}/mcp",\n    "headers": { "Authorization": "Bearer ${key}" } } } }`,
-    hermes: `# ~/.hermes/config.yaml\nmcp_servers:\n  fatima-voice-studio:\n    url: "http://127.0.0.1:${port}/mcp"\n    headers:\n      Authorization: "Bearer ${key}"\n    timeout: 1800`,
+    claude: `claude mcp add --scope user --transport http fatima-voice-studio http://${hostPort}/mcp --header "Authorization: Bearer ${key}"`,
+    codex: `# ~/.codex/config.toml\n[mcp_servers.fatima-voice-studio]\nurl = "http://${hostPort}/mcp"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
+    antigravity: `// ~/.gemini/config/mcp_config.json\n{ "mcpServers": { "fatima-voice-studio": { "serverUrl": "http://${hostPort}/mcp",\n    "headers": { "Authorization": "Bearer ${key}" } } } }`,
+    hermes: `# ~/.hermes/config.yaml\nmcp_servers:\n  fatima-voice-studio:\n    url: "http://${hostPort}/mcp"\n    headers:\n      Authorization: "Bearer ${key}"\n    timeout: 1800`,
     stdio: `command: ${s.python_exe}\nargs: ["${s.mcp_script.replace(/\\/g, '\\\\')}"]`,
   };
   const tab = S.connectTab || 'claude';
@@ -1519,7 +1521,7 @@ async function loadConnect() {
         <tr><td class="mono">POST /v1/audio/transcriptions</td><td>Speech to text with Whisper (json, text, srt, vtt, verbose_json).</td></tr>
         <tr><td class="mono">GET /v1/audio/voices</td><td>Your voice library.</td></tr>
         <tr><td class="mono">GET /v1/models</td><td>Installed models.</td></tr></table>
-      <p class="help">Interactive docs: <a href="/docs" target="_blank">/docs</a>. Requests go ahead of batches. The API only listens on this PC (127.0.0.1).</p>
+      <p class="help">Interactive docs: <a href="/docs" target="_blank">/docs</a>. Requests go ahead of batches. ${s.lan_status.active ? 'Other devices on your network can use it too, at this PC\'s network address (Settings → Other computers).' : 'The API only listens on this PC (127.0.0.1). To use it from other computers, turn on Settings → Other computers.'}</p>
     </section>
     <section class="card panel"><h2>AI agents (MCP)</h2>
       <p class="help">Let Claude Code, Codex, Antigravity, Hermes or any MCP agent make voiceovers: list voices, start batches, wait, fix parts, export. The studio must be running.</p>
@@ -1529,7 +1531,7 @@ async function loadConnect() {
       <p class="help">Agents can't download models or delete anything. They only write to the Exports folder (<span class="mono">${esc(s.exports_dir)}</span>), and only read voice clips and script files from these folders (plus Batches and Exports):</p>
       <textarea class="paste mono" id="agent-dirs" rows="4" style="font-size:12px">${esc(s.agent_read_dirs.join('\n'))}</textarea>
       <label class="check"><input type="checkbox" id="agent-nc" ${s.agents_noncommercial ? 'checked' : ''}> Let agents use non-commercial models (none installed by default)</label>
-      <button class="btn sm" id="agent-save">Save guard rails</button>
+      <button class="btn sm this-pc-only" id="agent-save">Save guard rails</button>
     </section></div>`;
   setHtml($('connect-body'), html);
 }
@@ -1550,6 +1552,7 @@ async function loadSettings() {
   const [settings] = await Promise.all([api('/api/settings'), loadVoicesList()]);
   S.settings = settings;
   const s = S.settings, st = S.state;
+  const lanCard = lanPanel(s.lan_status);
   const pathRow = (key, label, help) => `<div class="field"><label class="label">${label}</label><div class="path-row"><input class="input" data-set="${key}" value="${esc(s[key])}" title="${esc(s[key])}"><button class="btn sm" data-browse="${key}">Browse</button><button class="btn sm" data-open-folder="${key.replace('_dir', '')}" title="Open in File Explorer" aria-label="Open in File Explorer">${icon('folder')}</button></div>${help ? `<p class="help">${help}</p>` : ''}</div>`;
   const html = `<div class="settings-cols">
     <div class="settings-stack">
@@ -1591,8 +1594,52 @@ async function loadSettings() {
         <div class="field"><label class="label">API key</label><input class="input mono" data-set="api_key" value="${esc(s.api_key)}"></div></div>
       <div class="field"><label class="label">Hugging Face token <span class="opt">— optional</span></label><input class="input mono" type="password" data-set="hf_token" placeholder="${s.hf_token_set ? 'Set (type to replace, clear to remove)' : 'Not needed for the models here'}"></div>
     </section>
+    ${lanCard}
     </div></div>`;
-  setHtml($('settings-body'), html);
+  setHtml($('settings-body'), st.remote
+    ? `<div class="warn-box info" style="margin:0 0 14px">${icon('alert')}<span>You're using Fatima Voice Studio from another computer. Settings can only be changed on the PC that runs it.</span></div><fieldset class="bare" disabled>${html}</fieldset>`
+    : html);
+}
+// Settings → Other computers: the LAN switch, the addresses to open, and what stops other devices getting in.
+function lanPanel(l) {
+  let body = '';
+  if (l.enabled && l.restart_needed) {
+    body += `<div class="warn-box warn">${icon('alert')}<span>Restart the app to ${l.active ? 'apply this' : 'start listening on the network'}.</span></div>
+      <div class="row wrap"><button class="btn accent sm this-pc-only" data-restart>${icon('refresh')} Restart now</button></div>`;
+  } else if (!l.enabled && l.active) {
+    body += `<p class="help">Other devices are refused already. Restart the app to stop listening on the network.</p>
+      <div class="row wrap"><button class="btn sm this-pc-only" data-restart>${icon('refresh')} Restart now</button></div>`;
+  }
+  if (l.enabled && l.active && !l.restart_needed) {
+    body += l.addresses.length
+      ? `<div class="field"><span class="label">Open this on the other computer</span>${l.addresses.map((a) => `<div class="row" style="gap:6px"><a class="mono" href="${esc(a)}" target="_blank">${esc(a)}</a><button class="icon-btn" data-copy="${esc(a)}" aria-label="Copy address">${icon('copy')}</button></div>`).join('')}</div>`
+      : `<div class="warn-box warn">${icon('alert')}<span>This PC isn't connected to a local network right now.</span></div>`;
+  }
+  if (l.enabled) {
+    for (const n of l.public_networks) body += `<div class="warn-box warn">${icon('alert')}<span>Windows treats the network “${esc(n)}” as Public, so it blocks other devices. On this PC: Settings → Network &amp; internet → ${esc(n)} → Private network.</span></div>`;
+    if (l.firewall === false) body += `<div class="warn-box warn">${icon('alert')}<span>Windows Firewall may block other devices. Allow it once (Windows asks for permission).</span></div>
+      <div class="row wrap"><button class="btn sm this-pc-only" data-lan-firewall>Allow in Windows Firewall</button></div>`;
+  }
+  return `<section class="card panel" id="lan-card"><h2>Other computers</h2>
+      <label class="switch"><input type="checkbox" data-set="lan" ${l.enabled ? 'checked' : ''}> Use from other computers on my network</label>
+      <p class="help">Other PCs, laptops and phones on the same Wi-Fi or network open this app in their browser and make voiceovers on this PC's graphics card. No password is asked. Devices on the internet are always refused. Settings, folders, downloads and updates can only be changed on this PC.</p>
+      ${body}
+    </section>`;
+}
+// Restart the app, wait for it to come back, and load the page again.
+async function restartApp() {
+  await api('/api/restart', { method: 'POST' });
+  toast('Restarting…', true);
+  const t0 = Date.now();
+  let down = false;
+  while (Date.now() - t0 < 60000) {
+    await new Promise((r) => setTimeout(r, 700));
+    try {
+      const r = await fetch('/v1/health', { cache: 'no-store' });
+      if (r.ok && down) { location.reload(); return; }
+    } catch { down = true; }
+  }
+  toast('The app didn\'t come back. Start it again from the Start menu.');
 }
 // About → Updates: what's new in plain words, what each button does, and nothing from the download page.
 function updatesPanel(s, upd) {
@@ -1648,9 +1695,17 @@ $('settings-body').addEventListener('change', run(async (e) => {
     ls.innerHTML = languageOptions(r.default_language, r.default_model);
     if (ls.value !== r.default_language) S.settings = await api('/api/settings', { method: 'PUT', json: { default_language: ls.value } });
   }
-  toast(r.restart_needed ? 'Saved. Restart the app to use the new port.' : 'Saved.', true);
+  if (el.dataset.set === 'lan') { $('settings-body')._html = ''; await loadSettings(); }
+  toast(r.restart_needed ? 'Saved. Restart the app to apply it.' : 'Saved.', true);
 }));
 $('settings-body').addEventListener('click', run(async (e) => {
+  if (e.target.closest('[data-restart]')) { await restartApp(); return; }
+  if (e.target.closest('[data-lan-firewall]')) {
+    S.settings.lan_status = await api('/api/lan/firewall', { method: 'POST' });
+    $('settings-body')._html = ''; await loadSettings();
+    toast(S.settings.lan_status.firewall ? 'Allowed.' : 'Windows Firewall wasn\'t changed.', !!S.settings.lan_status.firewall);
+    return;
+  }
   const tp = e.target.closest('[data-theme-pick]');
   if (tp) { setTheme(tp.dataset.themePick); document.querySelectorAll('[data-theme-pick]').forEach((b) => b.setAttribute('aria-pressed', b === tp)); return; }
   const br = e.target.closest('[data-browse]');

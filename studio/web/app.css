@@ -546,3 +546,8 @@ dialog.modal form { display: flex; flex-direction: column; gap: 12px; }
 .drive { --c: var(--accent); padding-bottom: 8px; }
 .drive .sys-row > b { white-space: nowrap; }
 .sys-cols .help { margin-top: 8px; }
+
+/* used from another device on the network: this PC's folders, dialogs and settings aren't offered */
+body.remote [data-open-folder], body.remote [data-browse], body.remote .this-pc-only { display: none !important; }
+fieldset.bare { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset.bare[disabled] { opacity: .75; }

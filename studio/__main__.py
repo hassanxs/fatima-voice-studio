@@ -57,7 +57,9 @@ def main() -> None:
     from . import runtime
     runtime.quiet_loader_errors()  # a missing DLL gets the app's own message, not a Windows pop-up per engine run
 
-    server = uvicorn.Server(uvicorn.Config(create_app(cfg), host=cfg["host"], port=cfg["port"],
+    # the switch on the Settings page: every network card, and the app itself refuses anything not local (lan.py)
+    host = "0.0.0.0" if cfg.get("lan") else cfg["host"]
+    server = uvicorn.Server(uvicorn.Config(create_app(cfg), host=host, port=cfg["port"],
                                            log_level="warning", log_config=None))
     if "--no-browser" not in args:
         threading.Timer(1.5, webbrowser.open, args=[url]).start()
@@ -79,6 +81,8 @@ def main() -> None:
         from . import updater
         updater.request_exit = lambda: setattr(server, "should_exit", True)
         server.run()
+    if updater.restart_requested:
+        updater.relaunch([a for a in sys.argv[1:] if a != "--no-browser"])
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
-from . import APP_NAME, REPO_URL, __version__, audio, autostart, config, hardware, s2engine, subtitles, text as textmod
+from . import APP_NAME, REPO_URL, __version__, audio, autostart, config, hardware, lan, s2engine, subtitles, text as textmod
 from .downloads import Downloads
 from . import media
 from .engine import Engine, EngineError
@@ -28,6 +28,7 @@ from .transcribe import Transcripts
 from .speech_text import Dictionary, parse_import, speakable
 from .store import SCRIPT_OVERRIDES, Store, batch_status, items_of, script_status, settings_for
 from .updater import Updater
+from . import updater as updater_mod
 from .voices import Voices
 from .winui import pick_folder
 from .worker import Worker
@@ -126,7 +127,8 @@ def create_app(cfg: dict) -> FastAPI:
         for t in tasks:  # a loop that stops by accident would otherwise do so silently
             t.add_done_callback(lambda t: t.cancelled() or not t.exception() or
                                 log.error("Background task stopped", exc_info=t.exception()))
-        log.info("%s on http://%s:%s  (batches: %s)", APP_NAME, cfg["host"], cfg["port"], store.root)
+        log.info("%s on http://%s:%s%s  (batches: %s)", APP_NAME, cfg["host"], cfg["port"],
+                 "  and the local network" if started["lan"] else "", store.root)
         subtitles.GPU_TURN = engine.gpu_turn  # Whisper and the voice servers take turns on small graphics cards
         downloads.ensure_whisper_gpu()  # e.g. after an update: Whisper's graphics card build, if it's missing
         downloads.ensure_runtimes()     # and s2.cpp / omnivoice.cpp / audio.cpp, if a model of theirs is there without it
@@ -150,8 +152,18 @@ def create_app(cfg: dict) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                        allow_headers=["Authorization", "Content-Type"])
 
+    started = {"lan": bool(cfg.get("lan")), "port": cfg["port"]}  # what the server listens with until a restart
+
     @app.middleware("http")
     async def ui_only(request: Request, call_next):
+        client = request.client.host if request.client else None
+        if not lan.is_this_pc(client):
+            if not (cfg.get("lan") and lan.is_lan(client)):  # the internet, or the switch turned off since the start
+                return JSONResponse({"detail": f"{APP_NAME} only answers devices on its local network."},
+                                    status_code=403)
+            if request.method not in ("GET", "HEAD") and this_pc_only(request.url.path):
+                return JSONResponse({"detail": "That can only be done on the PC that runs " + APP_NAME + "."},
+                                    status_code=403)
         if request.url.path.startswith("/mcp") and request.headers.get("authorization") != f"Bearer {cfg['api_key']}":
             return JSONResponse({"detail": "Invalid or missing API key (Authorization: Bearer <key>)"}, status_code=401)
         if (request.url.path.startswith("/api/") and request.method not in ("GET", "HEAD")
@@ -163,6 +175,25 @@ def create_app(cfg: dict) -> FastAPI:
         return response
 
     # ---- helpers ------------------------------------------------------------------
+
+    def this_pc_only(path: str) -> bool:
+        """What other devices on the network can't do: change this PC's settings, open its folders and dialogs,
+        download or remove models and engines, update the app."""
+        return (path in ("/api/settings", "/api/browse-folder", "/api/open-folder", "/api/lan/firewall", "/api/restart")
+                or path.startswith(("/api/models/", "/api/tools/", "/api/setup/", "/api/whisper-gpu/", "/api/update"))
+                or (path.startswith("/api/batches/") and path.endswith("/open")))
+
+    def remote(request: Request) -> bool:
+        return not lan.is_this_pc(request.client.host if request.client else None)
+
+    def lan_status() -> dict:
+        port = started["port"]
+        on = started["lan"]
+        return {"enabled": bool(cfg.get("lan")), "active": on,
+                "restart_needed": bool(cfg.get("lan")) != on or cfg["port"] != port,
+                "addresses": [f"http://{a}:{port}/" for a in lan.addresses()] if on else [],
+                "public_networks": lan.public_networks() if cfg.get("lan") else [],
+                "firewall": lan.firewall_rule(port) if cfg.get("lan") else None}
 
     def get_batch(batch_id: str) -> dict:
         b = store.batches.get(batch_id)
@@ -313,7 +344,8 @@ def create_app(cfg: dict) -> FastAPI:
     # ---- state ------------------------------------------------------------------
 
     @app.get("/api/state")
-    def state():
+    def state(request: Request):
+        base = f"http://{request.url.netloc}" if remote(request) else f"http://127.0.0.1:{started['port']}"
         installed = config.installed_models(cfg)
         cur, fin = worker.current, worker.finishing
         return {
@@ -330,7 +362,8 @@ def create_app(cfg: dict) -> FastAPI:
             "subtitles_ready": subtitles.whisper_available(cfg),
             "setup_ready": cfg["engine"] in config.installed_engines(cfg) and cfg["default_model"] in installed,
             "update": {"status": updater.state["status"], "latest": updater.state["latest"]},
-            "api_base": f"http://{cfg['host']}:{cfg['port']}/v1",
+            "api_base": base + "/v1",
+            "remote": remote(request),  # this browser is on another device: settings and downloads stay on the PC
             "current": {"batch": cur[0]["id"], "item": cur[1]["id"], "text": cur[1]["text"][:120]} if cur else None,
             "finishing": {"batch": fin[0]["id"], "script": fin[1]["n"], "progress": worker.finish_progress,
                           "gpu": next(iter(subtitles.whisper_builds(cfg)), {}).get("gpu", False)} if fin else None,
@@ -1332,7 +1365,7 @@ def create_app(cfg: dict) -> FastAPI:
                       "voices_dir": str(voices.root), "data_dir": str(config.DATA),
                       "start_with_windows": autostart.enabled(), "python_exe": autostart.python_console(),
                       "mcp_script": str(config.ROOT / "studio_mcp.py"), "version": __version__, "repo_url": REPO_URL,
-                      "installed": config.INSTALLED}
+                      "installed": config.INSTALLED, "lan_status": lan_status()}
 
     @app.put("/api/settings")
     async def put_settings(request: Request):
@@ -1386,7 +1419,23 @@ def create_app(cfg: dict) -> FastAPI:
             changes["hf_token"] = str(changes["hf_token"] or "").strip()
         cfg.update(changes)
         config.save(cfg)
-        return get_settings() | {"restart_needed": "port" in changes}
+        if changes.get("lan") and not lan.firewall_rule(cfg["port"]):  # one admin prompt, now rather than later
+            await asyncio.to_thread(lan.add_firewall_rule, cfg["port"])
+        return get_settings() | {"restart_needed": lan_status()["restart_needed"]}
+
+    @app.post("/api/lan/firewall")
+    async def lan_firewall():
+        """Ask Windows again to let local-network devices in (the person said No to the prompt the first time)."""
+        await asyncio.to_thread(lan.add_firewall_rule, cfg["port"])
+        return lan_status()
+
+    @app.post("/api/restart")
+    def restart():
+        """Close and start again, e.g. to start or stop listening on the network."""
+        if batches_active():
+            raise HTTPException(409, "A batch is still working. Pause or finish it first, then restart.")
+        updater_mod.restart()
+        return {"ok": True}
 
     @app.post("/api/browse-folder")
     async def browse_folder(request: Request):
