@@ -157,6 +157,10 @@ func sendFile(p string) (string, error) {
 			return hp, nil
 		}
 	}
+	if !insideAny(s, readDirs()) {
+		return "", fmt.Errorf("%s isn't in a folder agents may read on this computer (%s). Move the file into one "+
+			"of them, or add its folder to local_read_dirs in %s", s, strings.Join(readDirs(), ", "), configPath())
+	}
 	f, err := os.Open(s)
 	if err != nil {
 		return "", fmt.Errorf("can't read %s: %v", s, err)
@@ -189,6 +193,40 @@ func sendFile(p string) (string, error) {
 	}
 	log.Printf("sent %s (%d bytes)", s, st.Size())
 	return r.Path, nil
+}
+
+// readDirs are the folders on this computer agents may pass files from: the ones in the settings, plus the folder
+// with the copies the bridge brought over (those map back to the PC's own files).
+func readDirs() []string {
+	c := getConfig()
+	out := []string{}
+	for _, d := range append(append([]string{}, c.LocalReadDirs...), c.FilesDir) {
+		if d = strings.TrimSpace(d); d != "" && filepath.IsAbs(d) && !contains(out, filepath.Clean(d)) {
+			out = append(out, filepath.Clean(d))
+		}
+	}
+	return out
+}
+
+// insideAny says whether path p is in one of the folders (links and junctions followed, so they can't lead out).
+func insideAny(p string, dirs []string) bool {
+	real := func(s string) string {
+		if r, err := filepath.EvalSymlinks(s); err == nil {
+			s = r
+		}
+		if a, err := filepath.Abs(s); err == nil {
+			s = a
+		}
+		return filepath.Clean(s)
+	}
+	rp := real(p)
+	for _, d := range dirs {
+		rel, err := filepath.Rel(real(d), rp) // on Windows this ignores upper and lower case
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- files out -------------------------------------------------------------------------------------------
@@ -250,6 +288,26 @@ func bringBack(tool string, v any) any {
 	ms := mirrors(hi, getConfig().FilesDir)
 	found := map[string]bool{}
 	collect(v, ms, found)
+	// a batch this answer describes: its folder here is a mirror of the PC's (batch.json too, once it's finished)
+	batchTool := tool == "create_batch" || tool == "get_batch" || tool == "wait_for_batch"
+	var batches []batchMirror
+	if batchTool {
+		batches = batchesIn(v, hi.BatchesDir)
+		for _, b := range batches {
+			if wasDeleted(b.ID) { // deleted from this computer: never brought back
+				for p := range found {
+					if _, ok := underHost(p, b.HostFolder); ok {
+						delete(found, p)
+					}
+				}
+				batches = nil
+				break
+			}
+			if finished(b.Status) {
+				found[strings.TrimRight(b.HostFolder, `\/`)+hostSep(b.HostFolder)+"batch.json"] = true
+			}
+		}
+	}
 	if len(found) == 0 {
 		return v
 	}
@@ -276,7 +334,9 @@ func bringBack(tool string, v any) any {
 			}
 			repl[st.Path] = local
 		case "dir":
-			_ = os.MkdirAll(local, 0o755)
+			if tool == "export_batch" || batchTool {
+				_ = os.MkdirAll(local, 0o755)
+			}
 			if tool == "export_batch" {
 				for _, f := range st.Files {
 					if lf, ok := hostToLocal(f.Path, ms); ok {
@@ -289,7 +349,57 @@ func bringBack(tool string, v any) any {
 			repl[st.Path] = local
 		}
 	}
+	for _, b := range batches {
+		if local, ok := hostToLocal(b.HostFolder, ms); ok {
+			if fi, err := os.Stat(local); err == nil && fi.IsDir() {
+				b.LocalFolder = local
+				noteBatch(b)
+			}
+		}
+	}
 	return replacePaths(v, repl)
+}
+
+// batchesIn finds the batches a tool's answer describes (id, name, status and a folder among the PC's batches).
+func batchesIn(v any, batchesDir string) []batchMirror {
+	m, ok := v.(map[string]any)
+	if !ok || batchesDir == "" {
+		return nil
+	}
+	id, _ := m["id"].(string)
+	folder, _ := m["folder"].(string)
+	if id == "" || folder == "" {
+		return nil
+	}
+	if rest, ok := underHost(folder, batchesDir); !ok || rest == "" {
+		return nil
+	}
+	name, _ := m["name"].(string)
+	status, _ := m["status"].(string)
+	if status == "" {
+		status = "queued" // create_batch: just queued
+	}
+	return []batchMirror{{ID: id, Name: name, Status: status, HostFolder: folder}}
+}
+
+// finished: the PC is done with the batch (nothing running, queued or being joined).
+func finished(status string) bool {
+	return status == "done" || status == "failed" || status == "cancelled"
+}
+
+// postProcess adjusts answers that describe the PC's own setup: through the bridge, agents pass files from this
+// computer's folders, not the PC's.
+func postProcess(tool string, v any) any {
+	if tool == "get_settings" {
+		if m, ok := v.(map[string]any); ok {
+			dirs := make([]any, 0)
+			for _, d := range readDirs() {
+				dirs = append(dirs, d)
+			}
+			m["agents_may_read"] = dirs
+		}
+	}
+	return v
 }
 
 // fetch downloads one file unless the copy here is already the same (size and time).
@@ -330,17 +440,24 @@ func fetch(st hostStat, local string) error {
 
 // ---- the MCP messages ------------------------------------------------------------------------------------
 
-const bridgeNote = "Through the bridge on this computer: pass files from anywhere on this computer (they are sent " +
-	"over), and file paths in results are copies on this computer, in "
+func bridgeNote() string {
+	s := "Through the bridge on this computer: pass files from this computer's folders that get_settings lists " +
+		"under agents_may_read (they are sent over), and file paths in results are copies on this computer. "
+	if getConfig().syncDeletes() {
+		s += "Deleting a finished batch's folder here also deletes that batch on the PC. "
+	}
+	return s + "The copies are in "
+}
 
 // rewriteText adjusts what the PC tells agents about folders, since through the bridge they work differently.
 func rewriteText(s, filesDir string) string {
 	s = strings.ReplaceAll(s, "Files you pass must be inside the folders allowed on the\nConnect page (see get_settings).",
-		bridgeNote+filesDir+".")
+		bridgeNote()+filesDir+".")
 	s = strings.ReplaceAll(s, "Files you pass must be inside the folders allowed on the Connect page (see get_settings).",
-		bridgeNote+filesDir+".")
-	s = strings.ReplaceAll(s, "absolute path in an allowed folder", "absolute path on this computer")
-	s = strings.ReplaceAll(s, "a .txt/.md path in an allowed folder", "a .txt/.md path on this computer")
+		bridgeNote()+filesDir+".")
+	s = strings.ReplaceAll(s, "absolute path inside an allowed folder", "absolute path on this computer, in an allowed folder")
+	s = strings.ReplaceAll(s, "absolute path in an allowed folder", "absolute path on this computer, in an allowed folder")
+	s = strings.ReplaceAll(s, "a .txt/.md path in an allowed folder", "a .txt/.md path on this computer, in an allowed folder")
 	return s
 }
 
@@ -417,14 +534,14 @@ func handleMessage(body []byte, extra map[string]string) (status int, contentTyp
 				text, _ := cm["text"].(string)
 				var inner any
 				if json.Unmarshal([]byte(text), &inner) == nil {
-					inner = bringBack(tool, inner)
+					inner = postProcess(tool, bringBack(tool, inner))
 					b, _ := json.Marshal(inner)
 					cm["text"] = string(b)
 				}
 			}
 		}
 		if sc, ok := result["structuredContent"]; ok {
-			result["structuredContent"] = bringBack(tool, sc)
+			result["structuredContent"] = postProcess(tool, bringBack(tool, sc))
 		}
 	}
 	out, _ = json.Marshal(r)

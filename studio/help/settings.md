@@ -96,8 +96,14 @@ Then, on the other computer:
 
 - **Open Fatima Voice Studio** from the bridge's tray icon or the Start menu, or open `http://localhost:9830`.
 - **AI agents** connect to `http://localhost:9830/mcp`, or start `FVS-Bridge.exe mcp`. The bridge's page has
-  both, ready to copy. Files the agent passes, like a voice clip or a script, can be anywhere on that computer: the
-  bridge sends them over. The finished audio, subtitles and transcripts come back to **Downloads\Fatima Voice Studio** there.
+  both, ready to copy. Files the agent passes, like a voice clip or a script, can be in that computer's Documents,
+  Downloads, Desktop or Music folder: the bridge sends them over. The finished audio, subtitles and transcripts come
+  back to **Downloads\Fatima Voice Studio** there, each batch with its `batch.json`.
+- **Deleting a finished batch's folder** there (in Downloads\Fatima Voice Studio\Batches) deletes that batch on this
+  PC too: it goes to this PC's Recycle Bin. A batch that is still being made is never deleted this way.
+- Other folders, or keeping batches here when their folder is deleted there: edit `local_read_dirs` and
+  `sync_deletes` in `%APPDATA%\FVS Bridge\bridge.json` on that computer, then quit the bridge from its tray icon
+  and start it again.
 - **Paired computers** are listed on this card. **Remove** stops one at once; it can ask to connect again.
 - To remove the bridge from the other computer: Windows **Settings → Apps → FVS Bridge → Uninstall**. The audio it
   brought over stays.

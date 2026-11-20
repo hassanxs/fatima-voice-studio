@@ -47,6 +47,24 @@ func downloadsDir() string {
 	return ""
 }
 
+// userDirs are the user's own folders, where they really are: Documents, Downloads, Desktop and Music.
+func userDirs() []string {
+	var out []string
+	home, _ := os.UserHomeDir()
+	for _, f := range []struct {
+		id   *windows.KNOWNFOLDERID
+		name string
+	}{{windows.FOLDERID_Documents, "Documents"}, {windows.FOLDERID_Downloads, "Downloads"},
+		{windows.FOLDERID_Desktop, "Desktop"}, {windows.FOLDERID_Music, "Music"}} {
+		if d, err := windows.KnownFolderPath(f.id, 0); err == nil && d != "" {
+			out = append(out, d)
+		} else if home != "" {
+			out = append(out, filepath.Join(home, f.name))
+		}
+	}
+	return out
+}
+
 func startMenuDir() string {
 	return filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`)
 }

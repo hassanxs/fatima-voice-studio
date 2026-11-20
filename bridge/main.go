@@ -84,6 +84,7 @@ func main() {
 		}
 	}()
 	go watch()
+	go syncDeletes()
 	go func() { // first run, or not paired yet: show the page where that's done
 		c := getConfig()
 		if c.Key == "" && !noBrowser {

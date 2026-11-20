@@ -18,7 +18,13 @@ type Config struct {
 	ListenPort int    `json:"listen_port"` // http://localhost:<this> on this computer
 	FilesDir   string `json:"files_dir"`   // where finished audio, subtitles and transcripts are copied to
 	Installed  bool   `json:"installed"`   // set up once: Start menu, start with Windows (Windows only)
+	// folders on this computer agents may pass files from (get_settings reports them as agents_may_read)
+	LocalReadDirs []string `json:"local_read_dirs"`
+	// deleting a batch's folder here also deletes that batch on the PC (to its Recycle Bin)
+	SyncDeletes *bool `json:"sync_deletes"`
 }
+
+func (c Config) syncDeletes() bool { return c.SyncDeletes == nil || *c.SyncDeletes }
 
 var (
 	cfgMu sync.Mutex
@@ -58,6 +64,13 @@ func loadConfig() {
 	}
 	if cfg.FilesDir == "" {
 		cfg.FilesDir = defaultFilesDir()
+	}
+	if cfg.LocalReadDirs == nil { // written out the next time the settings are saved, so they can be edited
+		cfg.LocalReadDirs = userDirs()
+	}
+	if cfg.SyncDeletes == nil {
+		on := true
+		cfg.SyncDeletes = &on
 	}
 }
 

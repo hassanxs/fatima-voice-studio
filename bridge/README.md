@@ -20,6 +20,14 @@ How to use it: [Settings → Other computers → The bridge](../studio/help/sett
   the PC's inbox (`/api/bridge/host/inbox`), or mapped back to the PC's own file if it is a copy the bridge made.
   Paths in answers that point into the PC's batches, exports or transcripts folders are downloaded to
   `Downloads\Fatima Voice Studio` (`/api/bridge/host/stat`, `/api/bridge/host/file`) and replaced with the local paths.
+- **Folders:** agents may pass files from `local_read_dirs` in `bridge.json` (default: Documents, Downloads,
+  Desktop, Music) and from the copies the bridge made; `get_settings` reports these as `agents_may_read`. Other
+  paths are refused.
+- **Batches:** for `create_batch`, `get_batch` and `wait_for_batch` the bridge also brings back a finished batch's
+  `batch.json`, and remembers the batch (`batches.json`). When such a batch folder is deleted here and the PC has
+  finished the batch, the bridge deletes it on the PC (`DELETE /api/batches/<id>`, to the Recycle Bin), logs it,
+  and never brings it back. `"sync_deletes": false` turns this off. Files arrive under a temporary name and are
+  renamed when complete.
 - **stdio:** `FVS-Bridge.exe mcp` does the same over stdin/stdout.
 - **Installing (Windows):** a release build copies itself to `%LOCALAPPDATA%\Programs\FVS Bridge`, adds a Start menu
   entry, an entry in Settings → Apps (`--uninstall`) and starts with Windows. No admin rights. Running a newer

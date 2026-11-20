@@ -34,6 +34,17 @@ func downloadsDir() string {
 	return ""
 }
 
+// userDirs are the user's own folders: Documents, Downloads, Desktop and Music.
+func userDirs() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	out := []string{filepath.Join(home, "Documents"), downloadsDir(), filepath.Join(home, "Desktop"),
+		filepath.Join(home, "Music")}
+	return out
+}
+
 func fatal(text string) { fmt.Fprintln(os.Stderr, text) }
 
 func autostartSupported() bool { return false }
