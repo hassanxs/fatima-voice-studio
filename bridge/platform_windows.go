@@ -132,8 +132,8 @@ func installOnce() bool {
 	target := filepath.Join(dir, exeName)
 	self := exePath()
 	if strings.EqualFold(filepath.Clean(self), filepath.Clean(target)) {
-		_ = os.Remove(target + ".old") // the copy an update moved out of the way
-		if !getConfig().Installed {    // installed by an older copy, or the settings were removed
+		removeOld(target)           // the copies updates moved out of the way
+		if !getConfig().Installed { // installed by an older copy, or the settings were removed
 			finishInstall(target)
 		}
 		return false
@@ -206,16 +206,32 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	out.Close()
-	// a running copy can't be overwritten, but it can be renamed out of the way
+	// A running copy (the bridge, or "FVS-Bridge.exe mcp" started by an AI app) can't be overwritten, but it can be
+	// renamed out of the way. An earlier .old may still be in use too, so each gets its own name.
+	removeOld(dst)
 	if _, err := os.Stat(dst); err == nil {
-		old := dst + ".old"
-		_ = os.Remove(old)
-		if err := os.Rename(dst, old); err != nil {
+		old := fmt.Sprintf("%s.%d.old", dst, time.Now().UnixNano())
+		var err error
+		for i := 0; i < 10; i++ { // it may take a moment to let go after quitting
+			if err = os.Rename(dst, old); err == nil {
+				break
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+		if err != nil {
 			os.Remove(tmp)
-			return errors.New("FVS Bridge is still running: quit it from its tray icon, then try again")
+			return fmt.Errorf("couldn't replace the installed copy (%v). Quit FVS Bridge from its tray icon, then run this again", err)
 		}
 	}
 	return os.Rename(tmp, dst)
+}
+
+// removeOld deletes the copies earlier updates moved aside (the ones still running stay until next time).
+func removeOld(exe string) {
+	olds, _ := filepath.Glob(exe + ".*old")
+	for _, o := range olds {
+		_ = os.Remove(o)
+	}
 }
 
 // uninstall removes the bridge from this computer: it tells the PC to forget this computer, stops the running
@@ -223,7 +239,7 @@ func copyFile(src, dst string) error {
 // The audio files it brought over stay.
 func uninstall() {
 	forgetOnHost()
-	if running, _ := alreadyRunning(); running {
+	if running, _, _ := alreadyRunning(); running {
 		askQuit()
 		time.Sleep(800 * time.Millisecond)
 	}

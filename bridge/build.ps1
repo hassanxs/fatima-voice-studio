@@ -16,7 +16,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "rsrc failed" }
     New-Item -ItemType Directory -Force dist | Out-Null
     $env:CGO_ENABLED = "0"
-    & $go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=$Version" -o dist\FVS-Bridge.exe .
+    & $go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=$Version -X main.build=$(Get-Date -Format yyyyMMddHHmmss)" -o dist\FVS-Bridge.exe .
     if ($LASTEXITCODE -ne 0) { throw "go build failed" }
 } finally {
     Pop-Location

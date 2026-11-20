@@ -25,6 +25,10 @@ import (
 
 var version = "dev" // set by build.ps1
 
+// build tells two builds of the same version apart (set by build.ps1), so a newer download always replaces the
+// running bridge, even before the version number changes.
+var build = ""
+
 func main() {
 	args := os.Args[1:]
 	mode := ""
@@ -57,15 +61,20 @@ func main() {
 	}
 
 	// started again while running: just open the page, unless this is a newer download (stop the old one, install)
-	if running, runningVersion := alreadyRunning(); running {
-		if portable() || runningVersion == version {
+	if running, runningVersion, runningBuild := alreadyRunning(); running {
+		if portable() || (runningVersion == version && runningBuild == build) {
 			if !noBrowser {
 				openBrowser(fmt.Sprintf("http://localhost:%d/_bridge", getConfig().ListenPort))
 			}
 			return
 		}
 		askQuit()
-		time.Sleep(1200 * time.Millisecond)
+		for i := 0; i < 30; i++ { // until it has stopped (up to 6 s)
+			time.Sleep(200 * time.Millisecond)
+			if r, _, _ := alreadyRunning(); !r {
+				break
+			}
+		}
 	}
 	if moved := installOnce(); moved {
 		return // the installed copy took over
@@ -124,20 +133,21 @@ func setupLog(mode string) {
 	log.SetFlags(log.LstdFlags)
 }
 
-// alreadyRunning: is a bridge answering on our port, and which version?
-func alreadyRunning() (bool, string) {
+// alreadyRunning: is a bridge answering on our port, and which version and build?
+func alreadyRunning() (bool, string, string) {
 	c := &http.Client{Timeout: 1500 * time.Millisecond}
 	resp, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d/_bridge/api/status", getConfig().ListenPort))
 	if err != nil {
-		return false, ""
+		return false, "", ""
 	}
 	defer resp.Body.Close()
 	var s struct {
 		App     string `json:"app"`
 		Version string `json:"version"`
+		Build   string `json:"build"`
 	}
 	ok := json.NewDecoder(resp.Body).Decode(&s) == nil && s.App == "fvs-bridge"
-	return ok, s.Version
+	return ok, s.Version, s.Build
 }
 
 // askQuit stops the bridge that is running (to update or remove it).
