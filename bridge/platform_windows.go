@@ -36,6 +36,17 @@ func installDir() string {
 	return filepath.Join(base, "Programs", "FVS Bridge")
 }
 
+// downloadsDir is the user's Downloads folder, wherever it really is (it may be moved to another drive).
+func downloadsDir() string {
+	if d, err := windows.KnownFolderPath(windows.FOLDERID_Downloads, 0); err == nil && d != "" {
+		return d
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, "Downloads")
+	}
+	return ""
+}
+
 func startMenuLink() string {
 	return filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`, "FVS Bridge.lnk")
 }

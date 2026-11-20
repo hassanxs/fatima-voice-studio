@@ -97,7 +97,7 @@ Then, on the other computer:
 - **Open Fatima Voice Studio** from the bridge's tray icon or the Start menu, or open `http://localhost:9830`.
 - **AI agents** connect to `http://localhost:9830/mcp`, or start `FVS-Bridge.exe mcp`. The bridge's page has
   both, ready to copy. Files the agent passes, like a voice clip or a script, can be anywhere on that computer: the
-  bridge sends them over. The finished audio, subtitles and transcripts come back to **Music\FVS Bridge** there.
+  bridge sends them over. The finished audio, subtitles and transcripts come back to **Downloads\Fatima Voice Studio** there.
 - **Paired computers** are listed on this card. **Remove** stops one at once; it can ask to connect again.
 - To remove the bridge from the other computer: Windows **Settings → Apps → FVS Bridge → Uninstall**. The audio it
   brought over stays.

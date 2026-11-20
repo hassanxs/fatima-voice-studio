@@ -36,11 +36,11 @@ func configDir() string {
 func configPath() string { return filepath.Join(configDir(), "bridge.json") }
 
 func defaultFilesDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
+	d := downloadsDir()
+	if d == "" {
 		return filepath.Join(configDir(), "Files")
 	}
-	return filepath.Join(home, "Music", "FVS Bridge") // not the app's own folder: the app may be installed here too
+	return filepath.Join(d, "Fatima Voice Studio")
 }
 
 func loadConfig() {

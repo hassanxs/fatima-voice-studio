@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 )
 
@@ -20,6 +21,17 @@ func openPath(p string) {
 		name = "open"
 	}
 	_ = exec.Command(name, p).Start()
+}
+
+// downloadsDir is the user's Downloads folder (XDG_DOWNLOAD_DIR when set).
+func downloadsDir() string {
+	if d := os.Getenv("XDG_DOWNLOAD_DIR"); d != "" {
+		return d
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, "Downloads")
+	}
+	return ""
 }
 
 func fatal(text string) { fmt.Fprintln(os.Stderr, text) }

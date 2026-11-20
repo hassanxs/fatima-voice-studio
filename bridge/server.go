@@ -265,7 +265,7 @@ func pageAPI(w http.ResponseWriter, r *http.Request) {
 	case "files_dir":
 		d := strings.TrimSpace(str("files_dir"))
 		if d == "" || !filepath.IsAbs(d) {
-			err = errors.New("type a full folder path, like C:\\Users\\you\\Music\\Fatima Voice Studio")
+			err = errors.New("type a full folder path, like C:\\Users\\you\\Downloads\\Fatima Voice Studio")
 		} else if err = os.MkdirAll(d, 0o755); err == nil {
 			err = updateConfig(func(c *Config) { c.FilesDir = d })
 		}

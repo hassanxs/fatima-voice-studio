@@ -1,8 +1,8 @@
 # FVS Bridge: a small helper for other computers on the network
 
 Status: built 2026-11-20 (not released). Code: `bridge/` (Go) and `studio/bridge.py`; how it works: `bridge/README.md`.
-Changes from this plan: discovery by UDP broadcast only (no mDNS); downloaded files go to `Music\FVS Bridge`, not the
-app's own Music folder (the app may be installed on that computer too); the inbox takes files up to 2 GB (videos to
+Changes from this plan: discovery by UDP broadcast only (no mDNS); downloaded files go to `Downloads\Fatima Voice Studio`
+(not the app's own Music folder, which an installed copy of the app would use); the inbox takes files up to 2 GB (videos to
 transcribe).
 
 ## What it does

@@ -19,7 +19,7 @@ How to use it: [Settings → Other computers → The bridge](../studio/help/sett
 - **Files in MCP calls:** for `add_voice`, `transcribe` and `create_batch`, a file on this computer is uploaded to
   the PC's inbox (`/api/bridge/host/inbox`), or mapped back to the PC's own file if it is a copy the bridge made.
   Paths in answers that point into the PC's batches, exports or transcripts folders are downloaded to
-  `Music\FVS Bridge` (`/api/bridge/host/stat`, `/api/bridge/host/file`) and replaced with the local paths.
+  `Downloads\Fatima Voice Studio` (`/api/bridge/host/stat`, `/api/bridge/host/file`) and replaced with the local paths.
 - **stdio:** `FVS-Bridge.exe mcp` does the same over stdin/stdout.
 - **Installing (Windows):** a release build copies itself to `%LOCALAPPDATA%\Programs\FVS Bridge`, adds a Start menu
   entry, an entry in Settings → Apps (`--uninstall`) and starts with Windows. No admin rights. Running a newer
