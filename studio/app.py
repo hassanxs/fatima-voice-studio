@@ -139,6 +139,8 @@ def create_app(cfg: dict) -> FastAPI:
         downloads.ensure_runtimes()     # and s2.cpp / omnivoice.cpp / audio.cpp, if a model of theirs is there without it
         if started["lan"]:
             discovery.start()           # bridges on other computers find this PC
+        if cfg.get("lan"):
+            lan.warm(started["port"])   # the network and firewall checks, so Settings doesn't wait for them
         inbox.clean()
         downloads.on_done.append(lambda key: asyncio.create_task(ensure_kokoro_voices()))
         asyncio.create_task(ensure_kokoro_voices())  # Kokoro there but its voices not added yet (e.g. a failed try)

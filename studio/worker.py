@@ -120,7 +120,7 @@ class Worker:
     async def _run_item(self, b: dict, it: dict) -> None:
         script = script_of(b, it)
         s = settings_for(b, script)
-        it.update(status="running", error=None, started=_now(), check=None)
+        it.update(status="running", error=None, started=_now(), check=None, heard=None)
         self.current = (b, it)
         self.store.save(b)
         started = time.monotonic()
@@ -197,6 +197,7 @@ class Worker:
                     script["output"].update(status="done", **result["output"])
                     for it in items_of(b, script):
                         it["check"] = result["checks"].get(it["id"], it.get("check"))
+                        it["heard"] = result["heard"].get(it["id"])
             except Exception as e:
                 log.exception("Finishing %s/%s failed", b["name"], script["stem"])
                 script["output"].update(status="failed", error=str(e) or e.__class__.__name__)
@@ -233,7 +234,7 @@ class Worker:
         else:
             (folder / f"{stem}.mp3").unlink(missing_ok=True)
         duration = len(track) / sr
-        checks, match = {}, None
+        checks, heard_parts, match = {}, {}, None
         if s.get("subtitles", True):
             srt = None
             if subtitles.whisper_available(self.cfg):
@@ -246,7 +247,7 @@ class Worker:
                         self.cfg, src, s.get("language"), on_progress=lambda p: setattr(self, "finish_progress", p)))
                     srt = subtitles.from_whisper(script["text"], heard, duration)
                     match = round(subtitles.match_rate(script["text"], heard), 3)
-                    checks = self._segment_checks(items, spans, heard)
+                    checks, heard_parts = self._segment_checks(items, spans, heard)
                 except subtitles.WhisperError as e:
                     log.warning("Whisper failed for %s: %s; timing subtitles from segments", stem, e)
                 finally:
@@ -261,16 +262,21 @@ class Worker:
         return {"output": {"files": files, "seconds": round(duration, 2), "lufs_before": round(before, 1),
                            "match": match, "finished": _now(),
                            "spans": [[round(a, 2), round(e, 2)] for a, e in spans]},
-                "checks": checks}
+                "checks": checks, "heard": heard_parts}
 
     @staticmethod
-    def _segment_checks(items: list[dict], spans: list[tuple[float, float]], heard) -> dict:
-        """Segments where Whisper heard well under the words of the text: likely a skipped or garbled part."""
-        checks = {}
+    def _segment_checks(items: list[dict], spans: list[tuple[float, float]], heard) -> tuple[dict, dict]:
+        """Segments where Whisper heard well under the words of the text: likely a skipped or garbled part. Also what
+        it heard in each part, word by word against the text (shown on the batch's page)."""
+        checks, heard_by_part = {}, {}
         for it, (start, end) in zip(items, spans):
             words = [w for w in heard if w[1] >= start - 0.3 and w[2] <= end + 0.3]
             # Whisper may write what it hears as digits ("1913") or as words ("ce jota ene ge"): take the better match.
-            rate = max(subtitles.match_rate(it["text"], words), subtitles.match_rate(it.get("spoken") or it["text"], words))
+            as_read = it.get("spoken") or it["text"]
+            rate_text, rate_read = subtitles.match_rate(it["text"], words), subtitles.match_rate(as_read, words)
+            rate = max(rate_text, rate_read)
+            heard_by_part[it["id"]] = {"rate": round(rate, 3), "read_as": rate_read > rate_text,
+                                       "diff": subtitles.word_diff(as_read if rate_read > rate_text else it["text"], words)}
             n = len(textmod.PAUSE_TAG.sub(" ", it["text"]).split())
             if n >= 4 and rate < 0.7:
                 checks[it["id"]] = (f"Whisper only recognised {rate:.0%} of the words here: part of it may be skipped "
@@ -279,7 +285,7 @@ class Worker:
                 checks[it["id"]] = it["check"]
             else:
                 checks[it["id"]] = None
-        return checks
+        return checks, heard_by_part
 
     # ---- API / previews --------------------------------------------------------------
 
@@ -347,7 +353,7 @@ class Worker:
             raise ValueError("That segment is being spoken right now.")
         if new_seed:
             it["seed"] = random.randint(0, 2**31 - 10**6)
-        it.update(status="queued", error=None, check=None)
+        it.update(status="queued", error=None, check=None, heard=None)
         script_of(b, it)["output"]["status"] = "pending"
         b["paused"] = False
         self.store.save(b)

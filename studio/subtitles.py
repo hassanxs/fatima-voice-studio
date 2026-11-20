@@ -363,6 +363,31 @@ def from_segments(segments: list[tuple[str, float, float]], track_end: float) ->
     return to_srt(build_cues(units_all, times_all, track_end)) if units_all else ""
 
 
+def word_diff(script: str, heard: list[tuple[str, float, float]]) -> list[list[str]]:
+    """The script's words next to what Whisper heard, as runs: ["ok", words] (heard the same), ["miss", words] (in the
+    script, not heard) and ["extra", words] (heard, not in the script). Words compare the way match_rate does."""
+    a_raw = [w for w in _tokens(textmod.PAUSE_TAG.sub(" ", textmod.strip_tags(script))) if _norm(w)]
+    b_raw = [w.strip() for w, _, _ in heard if _norm(w)]
+    a, b = [_norm(w) for w in a_raw], [_norm(w) for w in b_raw]
+    out: list[list[str]] = []
+
+    def add(kind: str, words: list[str]) -> None:
+        if not words:
+            return
+        if out and out[-1][0] == kind:
+            out[-1][1] += " " + " ".join(words)
+        else:
+            out.append([kind, " ".join(words)])
+
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if op == "equal":
+            add("ok", a_raw[i1:i2])
+        else:
+            add("miss", a_raw[i1:i2])
+            add("extra", b_raw[j1:j2])
+    return out
+
+
 def match_rate(script: str, heard: list[tuple[str, float, float]]) -> float:
     """Share of script words Whisper heard the same way: a quick check that the audio says the script."""
     a = [_norm(w) for w in _tokens(textmod.PAUSE_TAG.sub(" ", textmod.strip_tags(script))) if _norm(w)]

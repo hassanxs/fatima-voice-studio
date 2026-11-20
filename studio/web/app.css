@@ -324,6 +324,15 @@ select.mini { height: 26px; max-width: 150px; padding: 0 6px; border: 1px solid 
 .flag-note { font-size: 11px; color: var(--warn); margin-top: 4px; }
 .read-as { font-size: 12px; color: var(--accent); margin-top: 4px; font-style: italic; }
 .err-note { font-size: 11px; color: var(--red-hi); margin-top: 4px; }
+/* What Whisper heard in a part, against its text */
+.heard { margin-top: 6px; }
+.segs .heard > summary { padding: 0; font: 10px/1.4 var(--mono); text-transform: none; color: var(--warn); cursor: pointer; width: fit-content; }
+.segs .heard > summary:hover { color: var(--ink); }
+.heard-text { margin-top: 6px; padding: 8px 10px; border-radius: var(--r-card); background: var(--paper); border: 1px solid var(--line);
+  font-size: 13px; line-height: 1.6; color: var(--ink); }
+.heard del, .heard-key del { color: var(--red-hi); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.heard ins, .heard-key ins { color: var(--warn); background: var(--warn-soft); text-decoration: none; border-radius: 3px; padding: 0 2px; }
+.heard-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; font-size: 11px; color: var(--muted); }
 
 /* ---------- voices ---------- */
 .voices-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-bottom: 26px; align-items: start; }
@@ -520,6 +529,32 @@ dialog.modal form { display: flex; flex-direction: column; gap: 12px; }
 .dev-row { padding: 6px 0; border-bottom: 1px solid var(--line); gap: 10px; }
 .dev-row:last-of-type { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) { .toast, .skel::after { animation: none; } }
+
+/* The top bar keeps to one row as long as it can: first the name next to the logo goes, then the memory gauge
+   (it's on the System page too). On a phone it becomes two rows: logo, status and tools, then the four tabs. */
+@media (max-width: 1180px) {
+  .appbar { gap: 12px 20px; padding-left: 24px; padding-right: 24px; }
+  .brand-name { display: none; }
+  .nav a { padding: 0 13px; }
+}
+@media (max-width: 960px) {
+  .vram { display: none !important; }
+  .engine-sub { max-width: 220px; }
+  .nav a { padding: 0 11px; gap: 7px; }
+  .bar-right { gap: 8px; }
+}
+@media (max-width: 760px) {
+  .appbar { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; min-height: 0; padding: 10px 16px 8px; }
+  .bar-right { grid-column: 2; grid-row: 1; }
+  .nav { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  body.locked .nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .nav a { flex-direction: column; justify-content: center; gap: 3px; height: 50px; padding: 0 4px; font-size: 11px; }
+  .nav a svg.i { width: 18px; height: 18px; }
+  .engine-sub { display: none; }
+  .mark { width: 32px; height: 32px; }
+  .tool { padding: 0 9px; }
+  .title-row .kicker { display: none; }
+}
 
 @media (max-width: 720px) {
   .appbar, .page, .appfoot { padding-left: 16px; padding-right: 16px; }

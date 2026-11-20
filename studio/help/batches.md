@@ -99,6 +99,12 @@ The app listens to its own work:
 Marked parts are highlighted with a note. Listen to them; if one is wrong, give it a **New take** or **Edit** it.
 Often it's fine (an unusual name Whisper didn't know, for example).
 
+Under a marked part, **Whisper heard …% of the words** shows what it heard, word by word: words of your text it
+didn't hear are crossed out, and words it heard that aren't in your text are marked. Other parts where it heard
+something different have the same line, closed: click it to see. A missing sentence or a repeated phrase is then
+easy to spot; one name written differently usually isn't a problem. Batches made before this version show it after
+**Rebuild files**.
+
 ## If the PC or the app stops
 
 If the app closes or the PC restarts in the middle of a batch, the batch carries on where it left off the next

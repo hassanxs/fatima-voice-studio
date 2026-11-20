@@ -134,6 +134,9 @@ def part_view(b: dict, it: dict) -> dict:
            "seconds": it.get("audio_s"), "path": str(Path(b["folder"]) / it["file"]) if it["status"] == "done" else None}
     if it.get("check"):
         out["check"] = it["check"]
+        if (h := it.get("heard")) and h.get("diff"):  # what Whisper heard instead, to see what went wrong
+            out["whisper_heard"] = " ".join(t for k, t in h["diff"] if k != "miss")
+            out["not_heard"] = [t for k, t in h["diff"] if k == "miss"]
     if it.get("error"):
         out["error"] = it["error"]
     return out

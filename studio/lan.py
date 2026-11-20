@@ -10,6 +10,7 @@ import logging
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 log = logging.getLogger(__name__)
@@ -62,15 +63,35 @@ def addresses() -> list[str]:
 
 
 _cache: dict = {}
+_refreshing: set = set()
+_lock = threading.Lock()
 
 
 def _cached(key: str, ttl: float, fn):
+    """fn's value, read again in the background once it's older than ttl: the checks start PowerShell (a second or
+    two each), and the Settings page shouldn't wait for that on every load. Only the very first call waits."""
     hit = _cache.get(key)
-    if hit and time.monotonic() - hit[0] < ttl:
-        return hit[1]
-    value = fn()
-    _cache[key] = (time.monotonic(), value)
-    return value
+    if hit is None:
+        value = fn()
+        _cache[key] = (time.monotonic(), value)
+        return value
+    if time.monotonic() - hit[0] >= ttl:
+        with _lock:
+            start = key not in _refreshing
+            _refreshing.add(key)
+        if start:
+            def refresh():
+                try:
+                    _cache[key] = (time.monotonic(), fn())
+                finally:
+                    _refreshing.discard(key)
+            threading.Thread(target=refresh, daemon=True).start()
+    return hit[1]
+
+
+def warm(port: int) -> None:
+    """Fill the cache in the background at start, so the first Settings page doesn't wait either."""
+    threading.Thread(target=lambda: (public_networks(), firewall_rule(port)), daemon=True).start()
 
 
 def _ps(command: str) -> str:

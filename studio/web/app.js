@@ -901,6 +901,7 @@ function segRow(d, it) {
       ${it.spoken ? `<div class="read-as" title="What the voice reads: the pronunciation dictionary and numbers as words. Subtitles keep your text.">Read as: ${esc(it.spoken)}</div>` : ''}
       <div class="sub">${chip(running ? 'running' : it.status)}${it.audio_s ? `<span>${it.audio_s.toFixed(1)} s</span>` : ''}${it.duration ? `<span>made in ${it.duration.toFixed(1)} s</span>` : ''}<span>seed ${it.seed}</span>${it.pause_after ? `<span>then ${it.pause_after} s pause</span>` : ''}</div>
       ${it.check ? `<div class="flag-note">${icon('alert')} ${esc(it.check)}</div>` : ''}
+      ${it.status === 'done' ? heardBlock(it) : ''}
       ${it.error ? `<div class="err-note">${esc(it.error)}</div>` : ''}</div>
     <div class="tools">${it.status === 'done' ? player(fileUrl(d.id, it.file, it.finished), { small: true, seconds: it.audio_s }) : ''}
       <div class="row" style="gap:6px">
@@ -909,6 +910,23 @@ function segRow(d, it) {
         ${['failed', 'cancelled'].includes(it.status) ? '<button class="btn xs accent" data-seg="retry">Retry</button>' : ''}</div></div>
   </div>`;
 }
+// What Whisper heard in a part, word by word against its text: words it didn't hear are crossed out, words it heard
+// that aren't in the text are marked. Open by itself on parts to check; a click away on the others.
+S.heardOpen = new Set();
+function heardBlock(it) {
+  const h = it.heard;
+  if (!h?.diff?.length) return '';
+  const pct = Math.round(h.rate * 100);
+  if (h.diff.every(([k]) => k === 'ok')) return ''; // nothing to see: keep the row quiet
+  const words = h.diff.map(([k, t]) => k === 'ok' ? esc(t)
+    : k === 'miss' ? `<del title="In the text, not heard">${esc(t)}</del>` : `<ins title="Heard, not in the text">${esc(t)}</ins>`).join(' ');
+  const open = it.check || S.heardOpen.has(it.id);
+  return `<details class="heard" data-heard="${esc(it.id)}" ${open ? 'open' : ''}><summary>Whisper heard ${pct}% of the words</summary>
+    <div class="heard-text">${words}</div>
+    <div class="heard-key"><span><del>crossed out</del> not heard</span><span><ins>marked</ins> heard but not in the ${h.read_as ? 'text as read' : 'text'}</span>
+      <span>Whisper also mishears now and then: listen before you redo a part.</span></div></details>`;
+}
+
 // The part map: one cell per part, as wide as its text, coloured by its state, a gap between scripts. It fills in
 // while the batch runs (so it's the progress bar too); a click jumps to the part. Mouse-only: the list below is the
 // accessible way through the parts.
@@ -979,7 +997,12 @@ function renderDetail() {
   setHtml($('b-scripts'), html);
 }
 $('b-scripts').addEventListener('toggle', (e) => {
-  const det = e.target.closest?.('details.segs'); if (!det) return;
+  if (e.target.matches?.('details.heard')) {
+    const id = e.target.dataset.heard;
+    if (e.target.open) S.heardOpen.add(id); else S.heardOpen.delete(id);
+    return;
+  }
+  const det = e.target.matches?.('details.segs') ? e.target : null; if (!det) return;
   const n = Number(det.dataset.n);
   if (det.open) { S.open.add(n); S.closed.delete(n); } else { S.open.delete(n); S.closed.add(n); }
 }, true);
@@ -2298,9 +2321,12 @@ paintIcons();
 loadDraft();
 setSmode('list');
 (async () => {
-  await pollState();
-  try { S.settings = await api('/api/settings'); } catch { /* not ready */ }
-  try { const s = await api('/api/setup'); S.setupBench = s.benchmark; } catch { /* not ready */ }
+  // all three at once: the page shows as soon as the slowest is back, not after the three in turn
+  await Promise.all([
+    pollState(),
+    api('/api/settings').then((s) => { S.settings = s; }, () => { /* not ready */ }),
+    api('/api/setup').then((s) => { S.setupBench = s.benchmark; }, () => { /* not ready */ }),
+  ]);
   route();
   setInterval(async () => {
     await pollState();

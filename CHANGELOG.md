@@ -6,6 +6,9 @@ The app shows the entries for versions newer than yours on the About page. Keep 
 - FVS Bridge, a small program for other computers on your network: install it there (Settings → Other computers shows where to download it), click Allow on this PC, and that computer opens the app at http://localhost:9830, even after this PC's address changes. AI agents there use it without a key, can pass files from that computer's Documents, Downloads, Desktop and Music folders, and get the finished audio back there, in Downloads\Fatima Voice Studio. Deleting a finished batch's folder there deletes the batch on this PC too (to the Recycle Bin).
 - Settings → Other computers lists the computers paired with the bridge, with a Remove button.
 - Fixed: AI agents on other computers couldn't use MCP at this PC's network address (it answered "Invalid Host header").
+- A part's page shows what Whisper heard, word by word: words it didn't hear are crossed out, words it heard instead are marked. AI agents get the same for parts to check.
+- Pages open at once: they no longer wait about 3 seconds for the network checks when Other computers is on.
+- The top bar fits in one row in smaller windows, and on phones the four tabs sit in a row under the logo.
 
 ## 0.4.5
 - Use the app from other computers on your network: turn on Settings → Other computers and open the address it shows on the other PC, laptop or phone. Voiceovers are made on this PC's graphics card. No password on your network; devices on the internet are always refused. Settings, folders, downloads and updates stay on this PC.

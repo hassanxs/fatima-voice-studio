@@ -273,7 +273,7 @@ class Store:
         text = textmod.clean(text)
         if not text:
             raise ValueError("A segment needs some text. Delete it from the script instead.")
-        it.update(text=text, status="queued", error=None, check=None)
+        it.update(text=text, status="queued", error=None, check=None, heard=None)
         script_of(b, it)["output"]["status"] = "pending"
         b["paused"] = False
         self.save(b)
