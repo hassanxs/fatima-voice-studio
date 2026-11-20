@@ -114,6 +114,8 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let S = null, busy = false, searchedOnce = false;
 const unreachableHint = new URLSearchParams(location.search).has('unreachable');
+const justDone = new URLSearchParams(location.search).get('done'); // "installed" or "updated", once
+if (justDone) history.replaceState(null, '', location.pathname);
 
 async function post(action, body = {}) {
   const r = await fetch('/_bridge/api/' + action, { method: 'POST', headers: { 'X-Bridge': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -161,7 +163,9 @@ function render() {
       ${st.last_error ? `<p class="help">${esc(st.last_error)}</p>` : ''}
       <div class="row" style="margin-top:10px"><button class="btn" data-act="check">Try again</button><button class="btn" data-act="unlink" data-confirm="Disconnect from ${name}?">Pick another PC</button></div></div></div>`;
   }
-  if (unreachableHint && s.linked && !st.reachable) h = `<div class="note warn" style="margin:0 0 12px">Fatima Voice Studio didn't answer.</div>` + h;
+  if (justDone === 'updated') h = `<div class="note ok" style="margin:0 0 12px">FVS Bridge was updated to version ${esc(s.version_text || s.version)}. Your connection and settings are kept.</div>` + h;
+  if (justDone === 'installed') h = `<div class="note ok" style="margin:0 0 12px">FVS Bridge is installed. It starts with Windows, and you find it in Start as <b>Fatima Voice Studio Bridge</b>.</div>` + h;
+  if (unreachableHint && s.linked && !st.reachable) h =`<div class="note warn" style="margin:0 0 12px">Fatima Voice Studio didn't answer.</div>` + h;
   if ($('state-card')._h !== h) { $('state-card').innerHTML = h; $('state-card')._h = h; }
 
   const finding = !s.linked && !waiting;
@@ -185,7 +189,7 @@ function render() {
     $('autostart-row').hidden = !s.autostart_supported;
     $('autostart').checked = s.autostart;
   }
-  $('foot').textContent = `FVS Bridge ${s.version} · ${s.url}`;
+  $('foot').textContent = `FVS Bridge ${s.version_text || s.version} · ${s.url}`;
 }
 
 document.addEventListener('click', async (e) => {

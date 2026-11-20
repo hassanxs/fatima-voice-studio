@@ -12,7 +12,7 @@ if (-not (Test-Path $go)) { throw "Go not found: install it from https://go.dev/
 $Version = (Select-String -Path "$Root\studio\__init__.py" -Pattern '__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
 Push-Location $Here
 try {
-    & $go run github.com/akavel/rsrc@v0.10.2 -ico icon.ico -o rsrc_windows_amd64.syso
+    & $go run github.com/akavel/rsrc@v0.10.2 -ico icon.ico -manifest bridge.manifest -o rsrc_windows_amd64.syso
     if ($LASTEXITCODE -ne 0) { throw "rsrc failed" }
     New-Item -ItemType Directory -Force dist | Out-Null
     $env:CGO_ENABLED = "0"

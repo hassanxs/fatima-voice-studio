@@ -55,7 +55,15 @@ func setAutostart(on bool) error {
 	return errors.New("starting with the computer isn't available here yet")
 }
 
-func installOnce() bool { return false }
+func installOnce(extra ...string) bool { return false }
+
+func needsInstall() (installing, updating bool) { return false, false }
+
+func showProgress(heading, detail string) {}
+
+func setProgress(heading, detail string) {}
+
+func closeProgress() {}
 
 func portable() bool { return true }
 

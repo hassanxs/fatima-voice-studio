@@ -90,7 +90,23 @@ func messageBox(text string, icon uint32) {
 	_, _, _ = user32.NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(t)), uintptr(unsafe.Pointer(c)), uintptr(icon))
 }
 
-func fatal(text string) { messageBox(text, 0x10) }
+func fatal(text string) {
+	closeProgress()
+	messageBox(text, 0x10)
+}
+
+// needsInstall: is this a download to install (and is a copy installed already, so it's an update)?
+func needsInstall() (installing, updating bool) {
+	if portable() {
+		return false, false
+	}
+	target := filepath.Join(installDir(), exeName)
+	if strings.EqualFold(filepath.Clean(exePath()), filepath.Clean(target)) {
+		return false, false
+	}
+	_, err := os.Stat(target)
+	return true, err == nil
+}
 
 func autostartSupported() bool { return true }
 
@@ -124,7 +140,7 @@ func portable() bool { return hasArg("--portable") || version == "dev" }
 // installOnce copies the bridge to %LOCALAPPDATA%\Programs\FVS Bridge (no admin rights needed), adds it to the
 // Start menu, to Settings → Apps (for removing it) and to the programs that start with Windows, then starts that
 // copy. Running a newer download does the same, which updates it. Returns true when the installed copy took over.
-func installOnce() bool {
+func installOnce(extra ...string) bool {
 	if portable() {
 		return false
 	}
@@ -148,7 +164,7 @@ func installOnce() bool {
 		return false
 	}
 	finishInstall(target)
-	cmd := exec.Command(target, os.Args[1:]...) // e.g. --no-browser
+	cmd := exec.Command(target, append(append([]string{}, os.Args[1:]...), extra...)...) // e.g. --no-browser
 	cmd.Dir = dir
 	if err := cmd.Start(); err != nil {
 		log.Printf("start installed copy: %v", err)

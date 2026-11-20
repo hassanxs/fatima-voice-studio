@@ -61,13 +61,23 @@ func main() {
 	}
 
 	// started again while running: just open the page, unless this is a newer download (stop the old one, install)
-	if running, runningVersion, runningBuild := alreadyRunning(); running {
-		if portable() || (runningVersion == version && runningBuild == build) {
-			if !noBrowser {
-				openBrowser(fmt.Sprintf("http://localhost:%d/_bridge", getConfig().ListenPort))
-			}
-			return
+	running, runningVersion, runningBuild := alreadyRunning()
+	if running && (portable() || (runningVersion == version && runningBuild == build)) {
+		if !noBrowser {
+			openBrowser(fmt.Sprintf("http://localhost:%d/_bridge", getConfig().ListenPort))
 		}
+		return
+	}
+	// a download being installed: say so in a small window until the installed copy is up
+	installing, updating := needsInstall()
+	if installing {
+		if updating {
+			showProgress("Updating FVS Bridge", "Replacing the installed copy. Your connection and settings are kept.")
+		} else {
+			showProgress("Installing FVS Bridge", "Setting it up for this user. No admin rights needed.")
+		}
+	}
+	if running {
 		askQuit()
 		for i := 0; i < 30; i++ { // until it has stopped (up to 6 s)
 			time.Sleep(200 * time.Millisecond)
@@ -76,9 +86,29 @@ func main() {
 			}
 		}
 	}
-	if moved := installOnce(); moved {
-		return // the installed copy took over
+	done := "installed"
+	if updating {
+		done = "updated"
 	}
+	if moved := installOnce("--done=" + done); moved {
+		// the installed copy takes over: keep the window until it answers
+		for i := 0; i < 50; i++ {
+			time.Sleep(200 * time.Millisecond)
+			loadConfig() // it may have taken another port and saved that
+			if r, v, b := alreadyRunning(); r && v == version && b == build {
+				break
+			}
+		}
+		if updating {
+			setProgress("FVS Bridge is updated", "Version "+versionText()+". Opening its page…")
+		} else {
+			setProgress("FVS Bridge is installed", "Find it in Start as Fatima Voice Studio Bridge. Opening its page…")
+		}
+		time.Sleep(1500 * time.Millisecond)
+		closeProgress()
+		return
+	}
+	closeProgress()
 	l, err := listen()
 	if err != nil {
 		log.Printf("can't listen: %v", err)
@@ -94,11 +124,20 @@ func main() {
 	}()
 	go watch()
 	go syncDeletes()
-	go func() { // first run, or not paired yet: show the page where that's done
+	go func() { // just installed or updated, or not paired yet: show the page
 		c := getConfig()
-		if c.Key == "" && !noBrowser {
+		if noBrowser {
+			return
+		}
+		page := ""
+		if d := argValue("--done="); d == "installed" || d == "updated" {
+			page = "_bridge?done=" + d
+		} else if c.Key == "" {
+			page = "_bridge"
+		}
+		if page != "" {
 			time.Sleep(300 * time.Millisecond)
-			openBrowser(localURL() + "_bridge")
+			openBrowser(localURL() + page)
 		}
 	}()
 	if noTray {
@@ -161,6 +200,24 @@ func askQuit() {
 	if resp, err := c.Do(req); err == nil {
 		resp.Body.Close()
 	}
+}
+
+// argValue returns the value of an argument like --done=updated ("" when it isn't given).
+func argValue(prefix string) string {
+	for _, a := range os.Args[1:] {
+		if len(a) > len(prefix) && a[:len(prefix)] == prefix {
+			return a[len(prefix):]
+		}
+	}
+	return ""
+}
+
+// versionText is the version for people: "0.4.5 (20 Nov 2026)".
+func versionText() string {
+	if t, err := time.Parse("20060102150405", build); err == nil {
+		return fmt.Sprintf("%s (%s)", version, t.Format("2 Jan 2006 15:04"))
+	}
+	return version
 }
 
 func hasArg(name string) bool {

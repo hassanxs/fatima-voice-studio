@@ -31,7 +31,9 @@ How to use it: [Settings → Other computers → The bridge](../studio/help/sett
 - **stdio:** `FVS-Bridge.exe mcp` does the same over stdin/stdout.
 - **Installing (Windows):** a release build copies itself to `%LOCALAPPDATA%\Programs\FVS Bridge`, adds a Start menu
   entry, an entry in Settings → Apps (`--uninstall`) and starts with Windows. No admin rights. Running a newer
-  download replaces the running copy. `--portable` (and every `dev` build) runs where it is.
+  download replaces the running copy (each build has its own stamp, so this works within one version too). A small
+  window says "Installing" or "Updating" meanwhile (`progress_windows.go`, plain Win32), then the bridge's page
+  opens with a note. `bridge.manifest` gives the exe modern controls and sharp text on high-DPI screens. `--portable` (and every `dev` build) runs where it is.
 
 Settings and the log: `%APPDATA%\FVS Bridge`.
 

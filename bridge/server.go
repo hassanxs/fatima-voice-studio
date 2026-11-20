@@ -212,7 +212,7 @@ func status() map[string]any {
 	c := getConfig()
 	s := getState()
 	return map[string]any{
-		"app": "fvs-bridge", "version": version, "build": build, "host_id": c.HostID, "host_name": c.HostName, "addr": c.Addr,
+		"app": "fvs-bridge", "version": version, "build": build, "version_text": versionText(), "host_id": c.HostID, "host_name": c.HostName, "addr": c.Addr,
 		"port": c.Port, "linked": c.Addr != "", "has_key": c.Key != "", "state": s, "url": localURL(),
 		"mcp_url": localURL() + "mcp", "exe": exePath(), "files_dir": c.FilesDir,
 		"autostart": autostartEnabled(), "autostart_supported": autostartSupported(),
