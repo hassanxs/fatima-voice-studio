@@ -2,7 +2,7 @@
 
 The app shows the entries for versions newer than yours on the About page. Keep each line short and plain.
 
-## Unreleased
+## 0.4.6
 - FVS Bridge, a small program for other computers on your network: install it there (Settings → Other computers shows where to download it), click Allow on this PC, and that computer opens the app at http://localhost:9830, even after this PC's address changes. AI agents there use it without a key, can pass files from that computer's Documents, Downloads, Desktop and Music folders, and get the finished audio back there, in Downloads\Fatima Voice Studio. Deleting a finished batch's folder there deletes the batch on this PC too (to the Recycle Bin).
 - Settings → Other computers lists the computers paired with the bridge, with a Remove button.
 - Fixed: AI agents on other computers couldn't use MCP at this PC's network address (it answered "Invalid Host header").

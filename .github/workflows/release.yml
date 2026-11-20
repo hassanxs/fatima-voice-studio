@@ -31,6 +31,22 @@ jobs:
           $v = (Select-String -Path studio\__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
           if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} doesn't match __version__ $v" }
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: bridge/go.mod
+          cache-dependency-path: bridge/go.sum
+
+      # FVS Bridge, the program other computers download from the app (/bridge/download). It goes in studio\bin,
+      # so the installer and the quick-update zip carry it with the app's files (packaging\build.ps1 is part of
+      # the runtime fingerprint: changing it would turn quick updates into full ones).
+      - name: Build FVS Bridge
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File bridge\build.ps1
+          if ($LASTEXITCODE -ne 0) { throw "bridge build failed" }
+          New-Item -ItemType Directory -Force studio\bin | Out-Null
+          Copy-Item bridge\dist\FVS-Bridge.exe studio\bin\
+
       - name: Build installer
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging\build.ps1

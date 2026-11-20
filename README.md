@@ -198,6 +198,7 @@ About page when an update is ready. Older installers stay on the [releases page]
 
 | Version | What changed |
 |---|---|
+| [0.4.6](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.6) | FVS Bridge: other computers on your network use the app and its AI-agent connection as if it ran there, with files both ways. What Whisper heard, shown word by word; titles for Quick takes; faster pages and a top bar that fits smaller windows. |
 | [0.4.5](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.5) | Use the app from other computers on your network. New System page and graphics memory gauge; Voices page filters and search; a part map on the Batch page. |
 | [0.4.4](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.4) | S2 Pro uses 4-6 GB graphics cards instead of only the processor. Linux: tray icon on GNOME (Fedora); newer NVIDIA drivers recognised. |
 | [0.4.3](https://github.com/hassanxs/fatima-voice-studio/releases/tag/v0.4.3) | Linux: every voice model works (OmniVoice and the audio.cpp models too); the menu entry starts the app on desktops without a tray; older NVIDIA drivers fall back to Vulkan. |

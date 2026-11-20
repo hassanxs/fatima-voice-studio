@@ -2,7 +2,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 #
-# Needs: Python 3.13 with pip and Pillow on PATH (to fetch packages and draw the icon), Go (for FVS Bridge), and Inno Setup 6
+# Needs: Python 3.13 with pip and Pillow on PATH (to fetch packages and draw the icon), and Inno Setup 6
 # (ISCC.exe). The installer ships this repo's source files as they are, plus the official embeddable Python
 # and the exact packages in packaging\requirements-lock.txt. The engine and models are not bundled;
 # the app downloads them on its Setup and Models pages.
@@ -33,11 +33,6 @@ if (-not $issId -or $issId -ne $updId) { throw "AppId mismatch: installer.iss ha
 robocopy "$Root\studio" "$Stage\studio" /E /XD __pycache__ /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "copying studio failed" }
 foreach ($f in "studio_mcp.py", "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md") { Copy-Item "$Root\$f" $Stage }
-# FVS Bridge, the program other computers download from the app (/bridge/download). Needs Go (go.dev/dl).
-& powershell -NoProfile -ExecutionPolicy Bypass -File "$Root\bridge\build.ps1"
-if ($LASTEXITCODE -ne 0) { throw "bridge build failed" }
-New-Item -ItemType Directory -Force "$Stage\bridge" | Out-Null
-Copy-Item "$Root\bridge\dist\FVS-Bridge.exe" "$Stage\bridge\"
 Set-Content "$Stage\installed" "Marks an installed copy: data lives in %LOCALAPPDATA%\Fatima Voice Studio." -Encoding ascii
 
 # Runtime fingerprint: everything a quick update (app files only) can't change. Installed copies keep it in
@@ -150,7 +145,7 @@ python -c @"
 import hashlib, json, os, sys, zipfile
 stage, app_zip, setup, version, runtime, out = sys.argv[1:7]
 with zipfile.ZipFile(app_zip, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-    for top in ('studio', 'bridge', 'studio_mcp.py', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'FatimaVoiceStudio.exe'):
+    for top in ('studio', 'studio_mcp.py', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'FatimaVoiceStudio.exe'):
         path = os.path.join(stage, top)
         if os.path.isfile(path):
             z.write(path, top)

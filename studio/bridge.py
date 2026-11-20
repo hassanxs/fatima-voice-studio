@@ -50,9 +50,11 @@ def identity(cfg: dict) -> dict:
 
 
 def download_file() -> Path | None:
-    """The bridge installer other computers download from this app (built by packaging/build.ps1, or
-    bridge/build.ps1 when run from source)."""
-    for p in (config.ROOT / "bridge" / DOWNLOAD_NAME, config.ROOT / "bridge" / "dist" / DOWNLOAD_NAME):
+    """The bridge installer other computers download from this app: studio/bin in a release (the release workflow
+    builds it there, so the installer and quick updates carry it with the app's files), or bridge/dist when run
+    from source (bridge/build.ps1)."""
+    for p in (config.ROOT / "studio" / "bin" / DOWNLOAD_NAME, config.ROOT / "bridge" / DOWNLOAD_NAME,
+              config.ROOT / "bridge" / "dist" / DOWNLOAD_NAME):
         if p.is_file():
             return p
     return None

@@ -1,5 +1,5 @@
 # Build FVS-Bridge.exe into bridge\dist (the app serves it to other computers from there when run from source;
-# packaging\build.ps1 calls this and puts it in the installer).
+# the release workflow copies it to studio\bin, which the installer and quick updates carry).
 #   powershell -ExecutionPolicy Bypass -File bridge\build.ps1
 # Needs Go 1.24 or newer (go.dev/dl). The exe's icon is embedded with rsrc (fetched by `go run` the first time).
 $ErrorActionPreference = "Stop"

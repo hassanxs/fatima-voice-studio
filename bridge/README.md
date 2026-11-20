@@ -44,7 +44,8 @@ powershell -ExecutionPolicy Bypass -File bridge\build.ps1
 ```
 
 Needs Go 1.24 or newer. Writes `bridge\dist\FVS-Bridge.exe` with the app's version and icon; a copy of the app run
-from source serves it from there at `/bridge/download`. `packaging\build.ps1` builds it into the installer.
+from source serves it from there at `/bridge/download`. The release workflow (`.github/workflows/release.yml`) builds
+it into `studio\bin` before `packaging\build.ps1` runs, so the installer and quick updates carry it.
 
 For a quick test copy: `go build -o test\FVS-Bridge.exe .` in this folder, then run it with
 `--portable --no-browser` (add `--no-tray` for no tray icon).
