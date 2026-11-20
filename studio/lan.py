@@ -15,6 +15,7 @@ import time
 log = logging.getLogger(__name__)
 
 RULE = "Fatima Voice Studio (local network)"
+DISCOVERY_PORT = 9830  # UDP: bridges on other computers find this PC (bridge.py); fixed, whatever the web port
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
@@ -102,22 +103,28 @@ def firewall_rule(port: int) -> bool | None:
         try:
             out = _ps(f"$r = Get-NetFirewallRule -DisplayName '{RULE}' -ErrorAction SilentlyContinue | "
                       "Where-Object { $_.Enabled -eq 'True' }; "
-                      "if ($r) { ($r | Get-NetFirewallPortFilter).LocalPort } else { 'none' }")
+                      "if ($r) { $r | Get-NetFirewallPortFilter | ForEach-Object { \"$($_.Protocol):$($_.LocalPort)\" } } "
+                      "else { 'none' }")
         except (OSError, subprocess.SubprocessError):
             return None
-        return out != "none" and str(port) in out.split()
+        found = {x.upper() for x in out.split()}
+        # the web port, and the discovery port bridges use (a rule from 0.4.5 has only the first: allow it again)
+        return f"TCP:{port}" in found and f"UDP:{DISCOVERY_PORT}" in found
     return _cached(f"rule:{port}", 10, read)
 
 
 def add_firewall_rule(port: int) -> bool:
-    """Ask Windows (one admin prompt on this PC) to let local-network devices reach this port. False if refused."""
+    """Ask Windows (one admin prompt on this PC) to let local-network devices reach this port, and bridges find
+    this PC (UDP DISCOVERY_PORT). False if refused."""
     if sys.platform != "win32":
         return False
     import ctypes
     _cache.clear()
     netsh = (f'advfirewall firewall delete rule name="{RULE}" & netsh advfirewall firewall add rule name="{RULE}" '
-             f'dir=in action=allow protocol=TCP localport={port} remoteip=localsubnet profile=private,domain')
-    # through cmd, so both netsh commands run under the one prompt
+             f'dir=in action=allow protocol=TCP localport={port} remoteip=localsubnet profile=private,domain '
+             f'& netsh advfirewall firewall add rule name="{RULE}" '
+             f'dir=in action=allow protocol=UDP localport={DISCOVERY_PORT} remoteip=localsubnet profile=private,domain')
+    # through cmd, so all the netsh commands run under the one prompt
     rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", "cmd.exe", f"/c netsh {netsh}", None, 0)
     if rc <= 32:  # the person said No, or Windows refused
         log.info("Firewall rule not added (ShellExecute %s)", rc)

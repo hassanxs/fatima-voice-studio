@@ -511,6 +511,14 @@ dialog.modal form { display: flex; flex-direction: column; gap: 12px; }
 .toast.ok { background: var(--bar); color: var(--lime); }
 .toast[hidden] { display: none; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 14px); } }
+/* a bridge on another computer asks to connect (bridge.py) */
+.pair-box { position: fixed; right: 20px; bottom: 20px; z-index: 90; width: min(360px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; }
+.pair-req { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--r-card); padding: 14px 16px; box-shadow: 0 14px 40px rgba(0,0,0,.22); font-size: 13px; animation: toast-in .22s ease-out; }
+.pair-req p { margin: 6px 0 10px; color: var(--muted); }
+.pair-code { font-family: var(--mono, monospace); font-weight: 700; color: inherit; letter-spacing: .12em; }
+.sub-h { margin: 18px 0 4px; font-size: 14px; }
+.dev-row { padding: 6px 0; border-bottom: 1px solid var(--line); gap: 10px; }
+.dev-row:last-of-type { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) { .toast, .skel::after { animation: none; } }
 
 @media (max-width: 720px) {

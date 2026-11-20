@@ -27,3 +27,6 @@ dist/
 
 # Help website build output (mkdocs build)
 /site/
+
+# FVS Bridge: the exe icon resource made by bridge/build.ps1
+bridge/*.syso

@@ -51,6 +51,15 @@ Exact versions are in `packaging/requirements-lock.txt`; each package's licence 
 pystray, num2words, lameenc (with LAME) and libsndfile are LGPL. They are shipped unmodified as separate files (Python
 source and DLLs/extension modules), which you may replace with your own builds.
 
+## In FVS Bridge (`bridge\FVS-Bridge.exe`, the program for other computers)
+
+| Component | Licence | Source |
+|---|---|---|
+| Go standard library | BSD-3-Clause | https://go.dev |
+| golang.org/x/sys | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sys |
+| systray (fyne.io/systray) | Apache-2.0 | https://github.com/fyne-io/systray |
+| godbus/dbus (Linux builds only) | BSD-2-Clause | https://github.com/godbus/dbus |
+
 ## Downloaded by the app when you choose to
 
 These are not part of the installer. The app downloads them from their publishers when you click Download,

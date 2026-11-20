@@ -117,7 +117,7 @@ class Studio:
         if not path.is_absolute():
             raise ValueError(f"{source!r} isn't an absolute path or a link.")
         s = await self.settings()
-        allowed = [Path(d) for d in [*s.get("agent_read_dirs", []), s["batches_dir"], s["exports_dir"]]]
+        allowed = allowed_dirs(s)
         real = path.resolve()
         if not any(real == a.resolve() or a.resolve() in real.parents for a in allowed):
             raise ValueError(f"{path} isn't in a folder agents may read. Allowed: {', '.join(map(str, allowed))} "
@@ -150,6 +150,13 @@ def script_view(b: dict, s: dict, parts: bool) -> dict:
     if parts:
         out["part_list"] = [part_view(b, it) for it in b["items"] if it["script"] == s["n"]]
     return out
+
+
+def allowed_dirs(s: dict) -> list[Path]:
+    """Folders agents may read: the ones on the Connect page, batches, exports, and the inbox a bridge on another
+    computer uploads its files to (bridge.py)."""
+    return [Path(d) for d in [*s.get("agent_read_dirs", []), s["batches_dir"], s["exports_dir"],
+                              *([s["inbox_dir"]] if s.get("inbox_dir") else [])]]
 
 
 def summary(b: dict, parts: bool = False) -> dict:
@@ -399,7 +406,7 @@ def build(base: str, api_key, *, host_port: int | None = None) -> FastMCP:
         if data is None:
             path = Path(source).expanduser().resolve()
             s = await studio.settings()
-            allowed = [Path(d) for d in [*s.get("agent_read_dirs", []), s["batches_dir"], s["exports_dir"]]]
+            allowed = allowed_dirs(s)
             if not any(path == a.resolve() or a.resolve() in path.parents for a in allowed):
                 raise ValueError(f"{path} isn't in a folder agents may read (Connect page).")
             if not path.is_file():

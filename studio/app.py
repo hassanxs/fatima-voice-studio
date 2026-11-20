@@ -1,6 +1,7 @@
 """HTTP layer: the studio UI's /api routes and the OpenAI-compatible /v1 routes."""
 import asyncio
 import contextlib
+import hmac
 import json
 import logging
 import mimetypes
@@ -20,6 +21,7 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from . import APP_NAME, REPO_URL, __version__, audio, autostart, config, hardware, lan, s2engine, subtitles, text as textmod
+from . import bridge
 from .downloads import Downloads
 from . import media
 from .engine import Engine, EngineError
@@ -113,6 +115,9 @@ def create_app(cfg: dict) -> FastAPI:
     downloads = Downloads(cfg)
     transcripts = Transcripts(cfg)
     updater = Updater(cfg)
+    devices = bridge.Devices(cfg)       # bridges on other computers (bridge.py)
+    inbox = bridge.Inbox()
+    discovery = bridge.Discovery(cfg, cfg["port"])
     try:
         from .mcp_server import build as build_mcp
         mcp = build_mcp(f"http://127.0.0.1:{cfg['port']}", lambda: cfg["api_key"], host_port=cfg["port"])
@@ -132,6 +137,9 @@ def create_app(cfg: dict) -> FastAPI:
         subtitles.GPU_TURN = engine.gpu_turn  # Whisper and the voice servers take turns on small graphics cards
         downloads.ensure_whisper_gpu()  # e.g. after an update: Whisper's graphics card build, if it's missing
         downloads.ensure_runtimes()     # and s2.cpp / omnivoice.cpp / audio.cpp, if a model of theirs is there without it
+        if started["lan"]:
+            discovery.start()           # bridges on other computers find this PC
+        inbox.clean()
         downloads.on_done.append(lambda key: asyncio.create_task(ensure_kokoro_voices()))
         asyncio.create_task(ensure_kokoro_voices())  # Kokoro there but its voices not added yet (e.g. a failed try)
         if mcp:
@@ -143,6 +151,7 @@ def create_app(cfg: dict) -> FastAPI:
             t.cancel()
         engine.cancel_current()
         engine.stop_servers()
+        discovery.stop()
 
     app = FastAPI(title=APP_NAME, version=__version__, lifespan=lifespan,
                   description="OpenAI-compatible text-to-speech and transcription on this PC, plus batches of scripts. "
@@ -164,8 +173,13 @@ def create_app(cfg: dict) -> FastAPI:
             if request.method not in ("GET", "HEAD") and this_pc_only(request.url.path):
                 return JSONResponse({"detail": "That can only be done on the PC that runs " + APP_NAME + "."},
                                     status_code=403)
-        if request.url.path.startswith("/mcp") and request.headers.get("authorization") != f"Bearer {cfg['api_key']}":
-            return JSONResponse({"detail": "Invalid or missing API key (Authorization: Bearer <key>)"}, status_code=401)
+        if request.url.path.startswith("/mcp"):
+            if not key_ok(request.headers.get("authorization"), client):
+                return JSONResponse({"detail": "Invalid or missing API key (Authorization: Bearer <key>)"}, status_code=401)
+            if not lan.is_this_pc(client):  # the MCP library only accepts localhost names (DNS rebinding check);
+                set_host(request, f"127.0.0.1:{started['port']}")  # another device arrives by this PC's address
+        if request.url.path.startswith("/api/bridge/host/") and not key_ok(request.headers.get("authorization"), client):
+            return JSONResponse({"detail": "This computer isn't paired. Pair the bridge first."}, status_code=401)
         if (request.url.path.startswith("/api/") and request.method not in ("GET", "HEAD")
                 and request.headers.get("x-studio") != "1"):
             return JSONResponse({"detail": "Missing X-Studio header"}, status_code=403)
@@ -176,11 +190,25 @@ def create_app(cfg: dict) -> FastAPI:
 
     # ---- helpers ------------------------------------------------------------------
 
+    def key_ok(authorization: str | None, client: str | None = None) -> bool:
+        """The API key, or the key of a paired bridge (bridge.py)."""
+        if not authorization or not authorization.startswith("Bearer "):
+            return False
+        token = authorization[7:]
+        if hmac.compare_digest(token.encode(), str(cfg["api_key"]).encode()):
+            return True
+        return devices.check(token, client if client and not lan.is_this_pc(client) else None) is not None
+
+    def set_host(request: Request, host: str) -> None:
+        headers = [(k, v) for k, v in request.scope["headers"] if k != b"host"]
+        request.scope["headers"] = headers + [(b"host", host.encode())]
+
     def this_pc_only(path: str) -> bool:
         """What other devices on the network can't do: change this PC's settings, open its folders and dialogs,
         download or remove models and engines, update the app."""
         return (path in ("/api/settings", "/api/browse-folder", "/api/open-folder", "/api/lan/firewall", "/api/restart")
-                or path.startswith(("/api/models/", "/api/tools/", "/api/setup/", "/api/whisper-gpu/", "/api/update"))
+                or path.startswith(("/api/models/", "/api/tools/", "/api/setup/", "/api/whisper-gpu/", "/api/update",
+                                    "/api/bridge/requests/", "/api/bridge/devices/"))
                 or (path.startswith("/api/batches/") and path.endswith("/open")))
 
     def remote(request: Request) -> bool:
@@ -364,6 +392,7 @@ def create_app(cfg: dict) -> FastAPI:
             "update": {"status": updater.state["status"], "latest": updater.state["latest"]},
             "api_base": base + "/v1",
             "remote": remote(request),  # this browser is on another device: settings and downloads stay on the PC
+            "via_bridge": request.headers.get("x-fvs-bridge") == "1",  # ...through the bridge there (bridge.py)
             "current": {"batch": cur[0]["id"], "item": cur[1]["id"], "text": cur[1]["text"][:120]} if cur else None,
             "finishing": {"batch": fin[0]["id"], "script": fin[1]["n"], "progress": worker.finish_progress,
                           "gpu": next(iter(subtitles.whisper_builds(cfg)), {}).get("gpu", False)} if fin else None,
@@ -373,6 +402,8 @@ def create_app(cfg: dict) -> FastAPI:
                       if batch_status(b) in ("running", "queued", "paused", "finishing")],
             "voices": len(voices.list()),
             "version": __version__,
+            # a bridge on another computer asks to connect: Allow / Deny, on this PC only
+            "bridge_requests": devices.waiting() if not remote(request) and started["lan"] else [],
         }
 
     @app.get("/api/system")
@@ -1365,7 +1396,9 @@ def create_app(cfg: dict) -> FastAPI:
                       "voices_dir": str(voices.root), "data_dir": str(config.DATA),
                       "start_with_windows": autostart.enabled(), "python_exe": autostart.python_console(),
                       "mcp_script": str(config.ROOT / "studio_mcp.py"), "version": __version__, "repo_url": REPO_URL,
-                      "installed": config.INSTALLED, "lan_status": lan_status()}
+                      "installed": config.INSTALLED, "lan_status": lan_status(),
+                      "inbox_dir": str(inbox.root), "transcripts_dir": str(transcripts.root),
+                      "bridge": {"devices": devices.list(), "download": bridge.download_file() is not None}}
 
     @app.put("/api/settings")
     async def put_settings(request: Request):
@@ -1468,13 +1501,13 @@ def create_app(cfg: dict) -> FastAPI:
 
     # ---- OpenAI-compatible API ----------------------------------------------------------
 
-    def require_key(authorization: str | None = Header(None)):
-        if authorization != f"Bearer {cfg['api_key']}":
+    def require_key(request: Request, authorization: str | None = Header(None)):
+        if not key_ok(authorization, request.client.host if request.client else None):
             raise HTTPException(401, "Invalid or missing API key")
 
     @app.get("/v1/health")
     def health():
-        return {"status": "ok", "engine": engine.state, "version": __version__}
+        return {"status": "ok", "engine": engine.state, "app": APP_NAME, "port": started["port"]} | bridge.identity(cfg)
 
     @app.get("/v1/models", dependencies=[Depends(require_key)])
     def api_models():
@@ -1573,6 +1606,104 @@ def create_app(cfg: dict) -> FastAPI:
             return {"text": text, "language": result.get("result", {}).get("language"), "duration": len(a) / sr,
                     "segments": segs}
         return {"text": text}
+
+    # ---- the bridge on other computers (bridge.py) -----------------------------------------
+
+    @app.get("/bridge/download")
+    def bridge_download():
+        """The bridge installer, for the other computer to download from this app."""
+        path = bridge.download_file()
+        if not path:
+            raise HTTPException(404, "The bridge isn't included in this copy of the app.")
+        return FileResponse(path, filename=bridge.DOWNLOAD_NAME, media_type="application/vnd.microsoft.portable-executable")
+
+    @app.post("/api/bridge/pair")
+    async def bridge_pair(request: Request):
+        """A bridge asks to connect; the person on this PC clicks Allow or Deny."""
+        if not started["lan"]:
+            raise HTTPException(409, "Turn on Settings → Other computers on the PC that runs " + APP_NAME + ".")
+        body = await request.json()
+        try:
+            return devices.request(str(body.get("name") or ""), request.client.host if request.client else None)
+        except ValueError as e:
+            raise HTTPException(429, str(e))
+
+    @app.get("/api/bridge/pair/{rid}")
+    def bridge_pair_status(rid: str):
+        return devices.collect(rid) | bridge.identity(cfg)
+
+    @app.delete("/api/bridge/pair/{rid}")
+    def bridge_pair_cancel(rid: str):
+        return {"cancelled": devices.cancel(rid)}
+
+    @app.post("/api/bridge/requests/{short}/{answer}")
+    def bridge_answer(short: str, answer: str):
+        if answer not in ("allow", "deny"):
+            raise HTTPException(404, "Not found")
+        try:
+            return devices.answer(short, answer == "allow")
+        except KeyError:
+            raise HTTPException(404, "That computer stopped waiting. Ask it to connect again.")
+
+    @app.delete("/api/bridge/devices/{device_id}")
+    def bridge_remove(device_id: str):
+        if not devices.remove(device_id):
+            raise HTTPException(404, "No such computer")
+        return {"devices": devices.list()}
+
+    def bridge_roots() -> list[Path]:
+        """What a paired bridge may download: finished audio, exports and transcripts (never other folders)."""
+        return [Path(cfg["batches_dir"]), Path(cfg["exports_dir"]), transcripts.root]
+
+    @app.get("/api/bridge/host/info")
+    def bridge_info():
+        return bridge.identity(cfg) | {"port": started["port"], "batches_dir": cfg["batches_dir"],
+                                       "exports_dir": cfg["exports_dir"], "transcripts_dir": str(transcripts.root),
+                                       "inbox_dir": str(inbox.root)}
+
+    @app.post("/api/bridge/host/stat")
+    async def bridge_stat(request: Request):
+        paths = (await request.json()).get("paths") or []
+        if not isinstance(paths, list) or len(paths) > 500:
+            raise HTTPException(400, "paths: a list of up to 500 paths")
+        roots = bridge_roots()
+        return await asyncio.to_thread(lambda: [bridge.stat(Path(str(p)), roots) for p in paths])
+
+    @app.get("/api/bridge/host/file")
+    def bridge_file(path: str):
+        p = Path(path)
+        if not bridge.inside(p, bridge_roots()) or not p.is_file():
+            raise HTTPException(404, "No such file")
+        return FileResponse(p, filename=p.name)
+
+    @app.post("/api/bridge/host/forget")
+    def bridge_forget(request: Request):
+        """A bridge being unlinked or removed takes itself off the list of paired computers."""
+        auth = request.headers.get("authorization") or ""
+        dev = devices.check(auth[7:] if auth.startswith("Bearer ") else None)
+        if dev:
+            devices.remove(dev["id"])
+        return {"forgotten": bool(dev)}
+
+    @app.post("/api/bridge/host/inbox")
+    async def bridge_inbox(request: Request):
+        """A file an agent on the other computer passes to a tool: saved where the MCP tools may read it."""
+        form = await request.form()
+        upload = form.get("file")
+        if not hasattr(upload, "read"):
+            raise HTTPException(400, "No file")
+        folder = inbox.folder()
+        dest = folder / bridge.Inbox.safe_name(getattr(upload, "filename", "") or "file")
+        size = 0
+        with open(dest, "wb") as f:
+            while chunk := await upload.read(1 << 20):
+                size += len(chunk)
+                if size > bridge.INBOX_MAX:
+                    f.close()
+                    shutil.rmtree(folder, ignore_errors=True)
+                    raise HTTPException(413, "That file is larger than 2 GB.")
+                f.write(chunk)
+        return {"path": str(dest), "size": size}
 
     if mcp:
         app.router.routes.extend(mcp.streamable_http_app().routes)  # POST/GET /mcp, exact path (no redirect)

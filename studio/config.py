@@ -40,6 +40,8 @@ DEFAULTS = {
     "port": 9830,
     "lan": False,  # also answer other devices on the local network (see lan.py); applies after a restart
     "api_key": None,  # generated on first run
+    "host_id": None,  # generated on first run: how bridges on other computers recognise this PC (bridge.py)
+    "devices": [],    # paired bridges: name, address, a hash of each one's key
     "batches_dir": str(MUSIC / ("Batches" if INSTALLED else "batches")),
     "exports_dir": str(MUSIC / ("Exports" if INSTALLED else "exports")),  # where agents (MCP) save audio and exports
     # folders agents may read voice clips and scripts from (plus batches and exports, always)
@@ -494,6 +496,9 @@ def load() -> dict:
         cfg.update(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
     if not cfg["api_key"]:
         cfg["api_key"] = "sk-local-" + secrets.token_urlsafe(24)
+        save(cfg)
+    if not cfg["host_id"]:
+        cfg["host_id"] = secrets.token_hex(8)
         save(cfg)
     return cfg
 

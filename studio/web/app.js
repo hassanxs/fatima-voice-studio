@@ -462,6 +462,7 @@ async function pollState() {
   $('foot-right').innerHTML = `<a href="#about">v${esc(st.version)}</a> · ${esc(st.api_base)}`;
   if (st.update?.status === 'available') $('foot-left').innerHTML = `Fatima Voice Studio · <a href="#about">update ${esc(st.update.latest)} available</a>`;
   renderUpdateBadge();
+  if (!st.remote) renderPairRequests(st.bridge_requests);
 }
 
 // An update: a dot on the menu button (and on About in the menu), and a one-time message.
@@ -1552,7 +1553,7 @@ async function loadSettings() {
   const [settings] = await Promise.all([api('/api/settings'), loadVoicesList()]);
   S.settings = settings;
   const s = S.settings, st = S.state;
-  const lanCard = lanPanel(s.lan_status);
+  const lanCard = lanPanel(s.lan_status, s.bridge);
   const pathRow = (key, label, help) => `<div class="field"><label class="label">${label}</label><div class="path-row"><input class="input" data-set="${key}" value="${esc(s[key])}" title="${esc(s[key])}"><button class="btn sm" data-browse="${key}">Browse</button><button class="btn sm" data-open-folder="${key.replace('_dir', '')}" title="Open in File Explorer" aria-label="Open in File Explorer">${icon('folder')}</button></div>${help ? `<p class="help">${help}</p>` : ''}</div>`;
   const html = `<div class="settings-cols">
     <div class="settings-stack">
@@ -1597,11 +1598,11 @@ async function loadSettings() {
     ${lanCard}
     </div></div>`;
   setHtml($('settings-body'), st.remote
-    ? `<div class="warn-box info" style="margin:0 0 14px">${icon('alert')}<span>You're using Fatima Voice Studio from another computer. Settings can only be changed on the PC that runs it.</span></div><fieldset class="bare" disabled>${html}</fieldset>`
+    ? `<div class="warn-box info" style="margin:0 0 14px">${icon('alert')}<span>You're using Fatima Voice Studio from another computer. Settings can only be changed on the PC that runs it.${s.bridge?.download && !st.via_bridge ? ' Using it from here often? <a href="/bridge/download">Get the bridge for this computer</a>: then open it at http://localhost:9830, even after the other PC\'s address changes, and AI agents here connect without a key.' : ''}</span></div><fieldset class="bare" disabled>${html}</fieldset>`
     : html);
 }
 // Settings → Other computers: the LAN switch, the addresses to open, and what stops other devices getting in.
-function lanPanel(l) {
+function lanPanel(l, b) {
   let body = '';
   if (l.enabled && l.restart_needed) {
     body += `<div class="warn-box warn">${icon('alert')}<span>Restart the app to ${l.active ? 'apply this' : 'start listening on the network'}.</span></div>
@@ -1620,12 +1621,53 @@ function lanPanel(l) {
     if (l.firewall === false) body += `<div class="warn-box warn">${icon('alert')}<span>Windows Firewall may block other devices. Allow it once (Windows asks for permission).</span></div>
       <div class="row wrap"><button class="btn sm this-pc-only" data-lan-firewall>Allow in Windows Firewall</button></div>`;
   }
+  if (l.enabled && l.active && !l.restart_needed) body += bridgePanel(l, b || { devices: [] });
   return `<section class="card panel" id="lan-card"><h2>Other computers</h2>
       <label class="switch"><input type="checkbox" data-set="lan" ${l.enabled ? 'checked' : ''}> Use from other computers on my network</label>
       <p class="help">Other PCs, laptops and phones on the same Wi-Fi or network open this app in their browser and make voiceovers on this PC's graphics card. No password is asked. Devices on the internet are always refused. Settings, folders, downloads and updates can only be changed on this PC.</p>
       ${body}
     </section>`;
 }
+// The bridge: a small program for the other computer (bridge/ in the repo), and the computers paired with it.
+function bridgePanel(l, b) {
+  const when = (t) => t ? new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  const get = l.addresses[0] ? `${l.addresses[0]}bridge/download` : '';
+  let out = `<h3 class="sub-h">Bridge for other computers</h3>
+    <p class="help">A small program for the other computer. With it, that computer opens this app at <span class="mono">http://localhost:9830</span>, even after this PC's network address changes, and AI agents there (MCP) connect without a key. Files they pass are sent over, and the finished audio and subtitles come back to that computer.</p>`;
+  out += b.download && get
+    ? `<div class="field"><span class="label">On the other computer, download it from</span><div class="row" style="gap:6px"><span class="mono">${esc(get)}</span><button class="icon-btn" data-copy="${esc(get)}" aria-label="Copy address">${icon('copy')}</button></div><p class="help">Run it there: it finds this PC by itself (or type this PC's address), then asks to connect. Click Allow here when this PC asks.</p></div>`
+    : `<p class="help">This copy of the app doesn't include the bridge${S.settings?.installed ? '' : ' (running from source: build it with bridge\build.ps1)'}.</p>`;
+  if (b.devices.length) {
+    out += `<div class="field"><span class="label">Paired computers</span>${b.devices.map((d) => `<div class="row between dev-row"><span><b>${esc(d.name)}</b> <span class="micro">${esc(d.ip || '')} · last used ${esc(when(d.last_seen))}</span></span><button class="btn xs this-pc-only" data-bridge-remove="${esc(d.id)}">Remove</button></div>`).join('')}<p class="help">Remove a computer to stop it using the app through the bridge. It can ask to connect again.</p></div>`;
+  }
+  return out;
+}
+// A bridge on another computer asks to connect: Allow or Deny, on this PC (bottom right, on every page).
+function renderPairRequests(reqs) {
+  let box = $('pair-box');
+  if (!reqs?.length) { if (box) box.remove(); return; }
+  const key = reqs.map((r) => r.id).join();
+  if (box && box.dataset.key === key) return;  // unchanged: don't rebuild under the mouse
+  if (!box) { box = Object.assign(document.createElement('div'), { id: 'pair-box', className: 'pair-box' }); box.setAttribute('role', 'alertdialog'); document.body.append(box); }
+  box.dataset.key = key;
+  box.innerHTML = reqs.map((r) => `<div class="pair-req"><b>${esc(r.name)} wants to connect</b>
+      <p>A bridge at ${esc(r.ip || 'an unknown address')} asks to use Fatima Voice Studio. Check that it shows the code <span class="pair-code">${esc(r.code)}</span>.</p>
+      <div class="row wrap"><button class="btn accent sm" data-pair="${esc(r.id)}" data-answer="allow">Allow</button><button class="btn sm" data-pair="${esc(r.id)}" data-answer="deny">Deny</button></div></div>`).join('');
+}
+document.addEventListener('click', run(async (e) => {
+  const b = e.target.closest('[data-pair]');
+  if (!b) return;
+  b.closest('.pair-req').querySelectorAll('button').forEach((x) => { x.disabled = true; });
+  const allow = b.dataset.answer === 'allow';
+  try {
+    await api(`/api/bridge/requests/${b.dataset.pair}/${b.dataset.answer}`, { method: 'POST' });
+    toast(allow ? 'Connected. That computer can use the app now.' : 'Refused.', allow);
+  } finally {
+    const box = $('pair-box'); if (box) box.dataset.key = '';
+    await pollState();
+    if (S.view === 'settings') { $('settings-body')._html = ''; loadSettings(); }
+  }
+}));
 // Restart the app, wait for it to come back, and load the page again.
 async function restartApp() {
   await api('/api/restart', { method: 'POST' });
@@ -1700,6 +1742,13 @@ $('settings-body').addEventListener('change', run(async (e) => {
 }));
 $('settings-body').addEventListener('click', run(async (e) => {
   if (e.target.closest('[data-restart]')) { await restartApp(); return; }
+  const rm = e.target.closest('[data-bridge-remove]');
+  if (rm) {
+    await api(`/api/bridge/devices/${rm.dataset.bridgeRemove}`, { method: 'DELETE' });
+    $('settings-body')._html = ''; await loadSettings();
+    toast('Removed.', true);
+    return;
+  }
   if (e.target.closest('[data-lan-firewall]')) {
     S.settings.lan_status = await api('/api/lan/firewall', { method: 'POST' });
     $('settings-body')._html = ''; await loadSettings();

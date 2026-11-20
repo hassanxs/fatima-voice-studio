@@ -79,6 +79,32 @@ other computer's browser, like `http://192.168.1.20:9830/`.
 - The address can change when the router gives this PC a new one. The card always shows the current address.
 - Turning it off refuses other devices at once. **Restart now** stops the app listening on the network altogether.
 
+### The bridge, for computers you use often
+
+**FVS Bridge** is a small program for the other computer (Windows). With it, that computer opens the app at
+`http://localhost:9830`, which keeps working after this PC's address changes, and AI agents there use it without a
+key.
+
+1. On the other computer, open the download address the card shows (`http://<this PC's address>/bridge/download`)
+   and run **FVS-Bridge.exe**. Windows may warn that the program is unknown (it isn't signed): click
+   **More info → Run anyway**. It installs itself for that user, with no admin rights, and starts with Windows.
+2. Its page opens and finds this PC on the network by itself. If it doesn't, type the address from the card.
+3. This PC asks at the bottom right of the page: ***name* wants to connect**. Check that both show the same
+   four-digit code, then click **Allow**.
+
+Then, on the other computer:
+
+- **Open Fatima Voice Studio** from the bridge's tray icon or the Start menu, or open `http://localhost:9830`.
+- **AI agents** connect to `http://localhost:9830/mcp`, or start `FVS-Bridge.exe mcp`. The bridge's page has
+  both, ready to copy. Files the agent passes, like a voice clip or a script, can be anywhere on that computer: the
+  bridge sends them over. The finished audio, subtitles and transcripts come back to **Music\FVS Bridge** there.
+- **Paired computers** are listed on this card. **Remove** stops one at once; it can ask to connect again.
+- To remove the bridge from the other computer: Windows **Settings → Apps → FVS Bridge → Uninstall**. The audio it
+  brought over stays.
+
+The bridge finds this PC with a broadcast on the network (UDP port 9830). If **Allow in Windows Firewall** shows
+after an update, click it once: the firewall rule now also covers that.
+
 ## Updates
 
 Updates are on the **About** page now (menu at the top right): what's new, the **Quick update** and **Full

@@ -18,6 +18,10 @@ apps and agents on other computers on your network can use them too, at this PC'
 key (the Connect page shows the right address on each computer). If the key was shared by mistake, change it in
 **Settings → App**, then update your apps and agents.
 
+On a computer that uses the app often, install **FVS Bridge** instead
+([Settings → Other computers](settings.md#the-bridge-for-computers-you-use-often)). Agents there then connect to
+`http://localhost:9830/mcp` without a key, and can pass files from anywhere on that computer.
+
 ## OpenAI-compatible API
 
 Base URL: `http://127.0.0.1:9830/v1` (copy it from the tray menu: **Copy API URL**). Send the key in the header
