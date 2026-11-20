@@ -47,9 +47,15 @@ func downloadsDir() string {
 	return ""
 }
 
-func startMenuLink() string {
-	return filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`, "FVS Bridge.lnk")
+func startMenuDir() string {
+	return filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`)
 }
+
+// startMenuLink is named so that searching for "Fatima" in Start finds it.
+func startMenuLink() string { return filepath.Join(startMenuDir(), "Fatima Voice Studio Bridge.lnk") }
+
+// oldStartMenuLink is the name the first test builds used.
+func oldStartMenuLink() string { return filepath.Join(startMenuDir(), "FVS Bridge.lnk") }
 
 func openBrowser(u string) {
 	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", u).Start()
@@ -159,6 +165,7 @@ func finishInstall(target string) {
 	if err := cmd.Run(); err != nil {
 		log.Printf("Start menu shortcut: %v", err)
 	}
+	_ = os.Remove(oldStartMenuLink())
 	_ = updateConfig(func(c *Config) { c.Installed = true })
 }
 
@@ -205,6 +212,7 @@ func uninstall() {
 	_ = setAutostart(false)
 	_ = registry.DeleteKey(registry.CURRENT_USER, uninstallKey)
 	_ = os.Remove(startMenuLink())
+	_ = os.Remove(oldStartMenuLink())
 	files := getConfig().FilesDir
 	_ = os.RemoveAll(configDir())
 	if !hasArg("--quiet") {
