@@ -479,6 +479,7 @@ def create_app(cfg: dict) -> FastAPI:
 
     class SingleIn(BaseModel):
         text: str = Field(min_length=1, max_length=MAX_TEXT)
+        title: str | None = Field(None, max_length=120)  # names the take and its files; first words when empty
         settings: dict = {}
 
     @app.post("/api/singles")
@@ -487,7 +488,7 @@ def create_app(cfg: dict) -> FastAPI:
         if not s["voice"]:
             raise HTTPException(400, "Pick a voice (add one on the Voices page first).")
         try:
-            b, script = store.add_single(text=body.text, settings=s)
+            b, script = store.add_single(text=body.text, title=body.title, settings=s)
         except ValueError as e:
             raise HTTPException(400, str(e))
         worker.notify()

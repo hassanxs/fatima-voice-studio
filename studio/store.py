@@ -206,8 +206,9 @@ class Store:
         return next((b for b in self.batches.values() if b.get("kind") == "singles" and b.get("day") == today
                      and self.folder(b).exists()), None)
 
-    def add_single(self, *, text: str, settings: dict) -> tuple[dict, dict]:
-        """One quick generation, added as a script to today's Singles batch (created if needed)."""
+    def add_single(self, *, text: str, settings: dict, title: str | None = None) -> tuple[dict, dict]:
+        """One quick generation, added as a script to today's Singles batch (created if needed). title names it and
+        its files (the first words of the text when empty)."""
         now = dt.datetime.now()
         b = self.singles_today()
         if b is None:
@@ -222,7 +223,7 @@ class Store:
         seed = settings.get("seed")
         if seed in (None, ""):
             seed = random.randint(0, 2**31 - 10**6)
-        script = self._make_script(b, n, {"text": text, "voice": settings.get("voice"),
+        script = self._make_script(b, n, {"text": text, "title": title, "voice": settings.get("voice"),
                                           "language": settings.get("language"), "seed": int(seed)}, 3)
         # Singles keep each one's own output settings (they can differ from one single to the next).
         script["settings"] = {k: settings[k] for k in ("model", "loudness", "formats", "mp3_bitrate", "subtitles", "speed", "spell_numbers") if k in settings}

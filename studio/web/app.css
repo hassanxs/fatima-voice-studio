@@ -235,6 +235,7 @@ select.mini { height: 26px; max-width: 150px; padding: 0 6px; border: 1px solid 
 .ap.sm .ap-wave { height: 22px; }
 .ap.sm .ap-time { font-size: 10px; }
 .take { display: flex; flex-direction: column; gap: 10px; }
+.take .take-title { font-weight: 600; font-size: 16px; margin-bottom: -4px; overflow-wrap: anywhere; }
 .take .text { font-size: 14px; line-height: 1.55; color: var(--ink); max-height: 140px; overflow: auto; }
 .files { display: flex; flex-wrap: wrap; gap: 8px; }
 .progress { height: 6px; background: var(--well); border-radius: 3px; overflow: hidden; }

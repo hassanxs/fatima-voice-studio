@@ -267,12 +267,13 @@ def build(base: str, api_key, *, host_port: int | None = None) -> FastMCP:
 
     @mcp.tool()
     async def speak(text: str, voice: str | None = None, language: str | None = None, seed: int | None = None,
-                    speed: float | None = None, preset: str | None = None, wait: bool = True) -> dict:
+                    speed: float | None = None, preset: str | None = None, wait: bool = True,
+                    title: str | None = None) -> dict:
         """Speak one piece of text now (ahead of queued batches), saved in today's Singles batch. speed 0.8-1.25
-        (same pitch). preset = a channel preset's name. Returns the file paths (WAV/MP3/SRT) when wait=true
-        (up to 15 minutes), else the batch to wait on."""
+        (same pitch). preset = a channel preset's name. title names the take and its files (else its first words).
+        Returns the file paths (WAV/MP3/SRT) when wait=true (up to 15 minutes), else the batch to wait on."""
         voice_id = await studio.voice(voice) if voice else None
-        r = await studio.call("POST", "/api/singles", json={"text": text, "settings": batch_settings(
+        r = await studio.call("POST", "/api/singles", json={"text": text, "title": title, "settings": batch_settings(
             voice_id, language, await studio.model(None, preset), seed, None, None, None, speed, preset)})
         bid, n = r["batch"]["id"], r["script"]["n"]
         if not wait:

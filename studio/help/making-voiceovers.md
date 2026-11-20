@@ -12,9 +12,11 @@ What you type is kept while you work: if you close the page or the browser, it's
 For a line, an intro, a correction, or trying a voice.
 
 1. Click **Quick**.
-2. Type or paste the text.
-3. Pick the **Voice** and **Language**.
-4. Click **Make it**, or press **Ctrl+Enter**.
+2. Optional: give it a **Title**, like `Episode 3 intro`. It names the take and its files (`003_episode-3-intro.mp3`);
+   without one, the first words of the text are used.
+3. Type or paste the text.
+4. Pick the **Voice** and **Language**.
+5. Click **Make it**, or press **Ctrl+Enter**.
 
 Quick takes go **ahead of any batch** that's running, so you don't wait for the queue. The take appears on the
 right and plays by itself. Under it:

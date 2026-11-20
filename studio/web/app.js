@@ -484,12 +484,13 @@ function renderUpdateBadge() {
 // ---------- CREATE ----------
 const DRAFT = 'fvs-draft-v1';
 function saveDraft() {
-  try { localStorage.setItem(DRAFT, JSON.stringify({ single: $('single-text').value, scripts: S.scripts, name: $('batch-name').value, cmode: S.cmode })); } catch { /* storage off */ }
+  try { localStorage.setItem(DRAFT, JSON.stringify({ single: $('single-text').value, singleTitle: $('single-title').value, scripts: S.scripts, name: $('batch-name').value, cmode: S.cmode })); } catch { /* storage off */ }
 }
 function loadDraft() {
   try {
     const d = JSON.parse(localStorage.getItem(DRAFT) || '{}');
     $('single-text').value = d.single || '';
+    $('single-title').value = d.singleTitle || '';
     S.scripts = Array.isArray(d.scripts) && d.scripts.length ? d.scripts : [{ title: '', text: '' }];
     $('batch-name').value = d.name || '';
     if (d.cmode) setCmode(d.cmode, false);
@@ -700,6 +701,8 @@ $('pause-paragraph').addEventListener('input', updateSummary);
 $('speed').addEventListener('change', () => { $('speed').dataset.touched = '1'; updateSummary(); });
 $('opt-numbers').addEventListener('change', () => { $('opt-numbers').dataset.touched = '1'; });
 $('batch-name').addEventListener('input', saveDraft);
+$('single-title').addEventListener('input', saveDraft);
+$('single-title').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('single-text').focus(); } });
 $('single-text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('go').click(); } });
 
 $('go').addEventListener('click', run(async () => {
@@ -710,7 +713,7 @@ $('go').addEventListener('click', run(async () => {
     if (S.cmode === 'single') {
       const text = $('single-text').value.trim();
       if (!text) throw new Error('Type the text to speak.');
-      const r = await api('/api/singles', { method: 'POST', json: { text, settings } });
+      const r = await api('/api/singles', { method: 'POST', json: { text, title: $('single-title').value.trim() || null, settings } });
       S.single = { batch: r.batch.id, n: r.script.n };
       renderSingle();
     } else {
@@ -725,6 +728,11 @@ $('go').addEventListener('click', run(async () => {
 }));
 
 // The quick take's result card follows that single until it's done.
+// A title someone gave, not the one made from the first words of the text (that one would only repeat them).
+function ownTitle(s) {
+  const letters = (x) => (x || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  return !!s.title && !letters(s.text).startsWith(letters(s.title));
+}
 async function renderSingle() {
   if (!S.single) return;
   let d;
@@ -734,7 +742,7 @@ async function renderSingle() {
   $('single-empty').hidden = true; $('single-out').hidden = false;
   const out = s.output, v = out.finished || '';
   let html = `<div class="row between"><span class="micro">Quick take · ${esc(s.voice_name || '')} · ${esc(langName(s.language))}</span>${chip(s.status)}</div>
-    <div class="take"><div class="text">${esc(s.text)}</div>`;
+    <div class="take">${ownTitle(s) ? `<div class="take-title">${esc(s.title)}</div>` : ''}<div class="text">${esc(s.text)}</div>`;
   if (s.status === 'done') {
     const main = out.files.mp3 || out.files.wav;
     html += `${player(fileUrl(d.id, main, v), { autoplay: true })}

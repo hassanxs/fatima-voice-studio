@@ -8,6 +8,7 @@ The app shows the entries for versions newer than yours on the About page. Keep 
 - Fixed: AI agents on other computers couldn't use MCP at this PC's network address (it answered "Invalid Host header").
 - A part's page shows what Whisper heard, word by word: words it didn't hear are crossed out, words it heard instead are marked. AI agents get the same for parts to check.
 - Pages open at once: they no longer wait about 3 seconds for the network checks when Other computers is on.
+- Quick takes can have a title (Create → Quick): it names the take and its files. AI agents can pass one to speak too.
 - The top bar fits in one row in smaller windows, and on phones the four tabs sit in a row under the logo.
 
 ## 0.4.5
